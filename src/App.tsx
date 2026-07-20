@@ -1036,6 +1036,18 @@ export default function App() {
             <span>Estetica Minimalista e Naturale</span>
             <span className="text-stone-border">•</span>
             <span>AI Redesign 2026</span>
+            <span className="text-stone-border">•</span>
+            <span>
+              Autore:{" "}
+              <a
+                href="https://michelepolo.github.io/Journey/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-forest-sage hover:text-nature-gold underline decoration-forest-light/40 hover:decoration-nature-gold transition-colors"
+              >
+                Michele Polo
+              </a>
+            </span>
           </div>
         </div>
       </footer>
