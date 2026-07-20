@@ -77,7 +77,7 @@ export const Q: Question[] = [
         f: "𝒟ˀ = { non sappiamo · non possiamo sapere · domanda da chiarire }",
         b: "Il giudizio resta sospeso, oppure il divino non è la categoria centrale della visione del mondo.",
         ex: ["agnosticismo", "ignosticismo", "buddhismo", "taoismo"],
-        im: "A distinguere fra ciò che non sai e ciò che non è sapibile.",
+        im: "Distinguere fra ciò che non sai e ciò che non è conoscibile.",
         co: "Sospendere il giudizio ha un costo pratico: la vita chiede comunque di orientarsi."
       }
     ]
