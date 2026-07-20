@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif-display: "Fraunces", Georgia, serif;
+  --font-serif-body: "Spectral", Georgia, serif;
+  --font-mono-tech: "IBM Plex Mono", monospace;
+  --font-sans-ui: "Inter", system-ui, sans-serif;
+  
+  /* Palette Clean Minimalism */
+  --color-stone-bg: #F2F0E9;
+  --color-stone-card: #FAF9F6;
+  --color-stone-accent: #EAE8DD;
+  --color-stone-border: #D1CDC2;
+  
+  --color-forest-dark: #1A1C18;
+  --color-forest-medium: #2D302A;
+  --color-forest-sage: #7B8C73;
+  --color-forest-light: #8C9C85;
+  --color-forest-pale: #D1CDC2;
+  
+  --color-earth-ochre: #B87B3F;
+  --color-earth-clay: #9D5036;
+  --color-earth-sand: #EBE4D3;
+  --color-earth-bark: #4D413A;
+  
+  --color-nature-gold: #C08C5D;
+  --color-nature-teal: #4D8B81;
+  --color-nature-violet: #786C90;
+  --color-nature-rose: #BC766E;
+  --color-nature-sky: #5D8CA8;
+}
+
+/* Custom fade-in and slide animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Base resets with native classes */
+body {
+  font-family: var(--font-serif-body);
+  background-color: var(--color-stone-bg);
+  color: var(--color-forest-dark);
+}
+
+.font-display {
+  font-family: var(--font-serif-display);
+}
+
+.font-body {
+  font-family: var(--font-serif-body);
+}
+
+.font-mono-tech {
+  font-family: var(--font-mono-tech);
+}
+
+.font-sans-ui {
+  font-family: var(--font-sans-ui);
+}
+
+/* Elegant scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-stone-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-forest-pale);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-forest-light);
+}
