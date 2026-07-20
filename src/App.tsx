@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Compass,
@@ -20,7 +20,9 @@ import {
   Feather,
   GitBranch,
   Flame,
-  Award
+  Award,
+  Share2,
+  Check
 } from "lucide-react";
 
 import {
@@ -35,12 +37,55 @@ import {
 } from "./data";
 
 const ANSWERS_STORAGE_KEY = "albero-alternative-answers";
+const SHARE_VERSION = "1";
+
+// Positional encoding: one char per question in Q order.
+// "0" = unanswered, "1".."5" = 1-based index of the chosen option.
+function encodeAnswers(answers: Record<string, string>): string {
+  return Q.map((q) => {
+    const optIndex = q.o.findIndex((opt) => opt.id === answers[q.id]);
+    return optIndex >= 0 ? String(optIndex + 1) : "0";
+  }).join("");
+}
+
+function decodeAnswers(encoded: string): Record<string, string> | null {
+  if (encoded.length !== Q.length) return null;
+  const decoded: Record<string, string> = {};
+  for (let i = 0; i < Q.length; i++) {
+    const digit = encoded.charCodeAt(i) - 48; // "0" -> 0
+    if (digit === 0) continue;
+    const option = Q[i].o[digit - 1];
+    if (!option) return null;
+    decoded[Q[i].id] = option.id;
+  }
+  return decoded;
+}
+
+// Parsed once at load: answers shared via URL (?responses=...&v=1), or null.
+const URL_IMPORT: Record<string, string> | null = (() => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const encoded = params.get("responses");
+    if (!encoded) return null;
+    if ((params.get("v") ?? SHARE_VERSION) !== SHARE_VERSION) return null;
+    const decoded = decodeAnswers(encoded);
+    return decoded && Object.keys(decoded).length > 0 ? decoded : null;
+  } catch {
+    return null;
+  }
+})();
 
 export default function App() {
   // --- STATE ---
-  const [activeTab, setActiveTab] = useState<"intro" | "tree" | "matrix" | "profiles">("intro");
+  const [activeTab, setActiveTab] = useState<"intro" | "tree" | "matrix" | "profiles">(
+    URL_IMPORT ? "profiles" : "intro"
+  );
   const [activeQuestionId, setActiveQuestionId] = useState<string>("q1");
+  // While true, answers came from a shared URL and must not overwrite
+  // the visitor's own localStorage until they interact.
+  const viewingSharedResult = useRef<boolean>(URL_IMPORT !== null);
   const [answers, setAnswers] = useState<Record<string, string>>(() => {
+    if (URL_IMPORT) return URL_IMPORT;
     try {
       const saved = localStorage.getItem(ANSWERS_STORAGE_KEY);
       if (!saved) return {};
@@ -72,6 +117,7 @@ export default function App() {
 
   // Handle option toggling (if already selected, deselect; otherwise select)
   const handleAnswerSelect = (questionId: string, optionId: string) => {
+    viewingSharedResult.current = false;
     setAnswers((prev) => {
       const updated = { ...prev };
       if (updated[questionId] === optionId) {
@@ -85,12 +131,29 @@ export default function App() {
 
   const handleClearAll = () => {
     if (window.confirm("Sei sicuro di voler azzerare tutte le risposte date finora?")) {
+      viewingSharedResult.current = false;
       setAnswers({});
     }
   };
 
+  // Strip share params from the address bar after import, so a refresh
+  // doesn't re-import and the visitor can share their own link later.
+  useEffect(() => {
+    if (URL_IMPORT) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("responses");
+        url.searchParams.delete("v");
+        window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      } catch {
+        // ignore: cosmetic only
+      }
+    }
+  }, []);
+
   // Persist answers across sessions
   useEffect(() => {
+    if (viewingSharedResult.current) return;
     try {
       localStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(answers));
     } catch {
@@ -1181,6 +1244,62 @@ function SidebarContent({
   );
 }
 
+// --- SHARE BUTTON ("Condividi il TUO 42") ---
+
+function ShareButton({
+  answers,
+  answeredCount
+}: {
+  answers: Record<string, string>;
+  answeredCount: number;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const buildShareUrl = () => {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.hash = "";
+    url.searchParams.set("responses", encodeAnswers(answers));
+    url.searchParams.set("v", SHARE_VERSION);
+    return url.toString();
+  };
+
+  const handleShare = async () => {
+    const shareUrl = buildShareUrl();
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard unavailable (e.g. insecure context): let the user copy manually
+      window.prompt("Copia il link per condividere il tuo 42:", shareUrl);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleShare}
+      title={`Condivide un link con le tue ${answeredCount} risposte su ${Q.length}`}
+      className={`text-xs font-mono-tech transition flex items-center gap-1.5 uppercase tracking-wider px-3 py-1.5 rounded-lg border ${
+        copied
+          ? "text-nature-teal border-nature-teal/40 bg-nature-teal/5"
+          : "text-forest-sage border-stone-border/70 hover:text-forest-dark hover:border-forest-sage/60 bg-white"
+      }`}
+    >
+      {copied ? (
+        <>
+          <Check className="w-3.5 h-3.5" /> Link copiato
+        </>
+      ) : (
+        <>
+          <Share2 className="w-3.5 h-3.5" /> Condividi il TUO 42
+          <span className="text-forest-light normal-case">({answeredCount}/{Q.length})</span>
+        </>
+      )}
+    </button>
+  );
+}
+
 // --- AFFINITY RESONANCE PANEL ---
 
 interface AffinityProps {
@@ -1216,12 +1335,15 @@ function AffinitySection({
           </p>
         </div>
         {answeredCount > 0 && (
-          <button
-            onClick={handleClearAll}
-            className="text-xs text-nature-rose hover:text-earth-clay font-mono-tech transition flex items-center gap-1.5 self-start sm:self-auto uppercase tracking-wider"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> Reset Scelte
-          </button>
+          <div className="flex items-center gap-4 self-start sm:self-auto">
+            <ShareButton answers={answers} answeredCount={answeredCount} />
+            <button
+              onClick={handleClearAll}
+              className="text-xs text-nature-rose hover:text-earth-clay font-mono-tech transition flex items-center gap-1.5 uppercase tracking-wider"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Reset Scelte
+            </button>
+          </div>
         )}
       </div>
 
