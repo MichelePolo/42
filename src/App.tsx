@@ -35,6 +35,7 @@ import {
   Option,
   Profile
 } from "./data";
+import SHARE_PROFILES from "./shareProfiles.json";
 
 const ANSWERS_STORAGE_KEY = "albero-alternative-answers";
 const SHARE_VERSION = "1";
@@ -1256,9 +1257,29 @@ function ShareButton({
   const [copied, setCopied] = useState(false);
 
   const buildShareUrl = () => {
-    const url = new URL(window.location.href);
-    url.search = "";
-    url.hash = "";
+    // Top-resonance profile decides which share page (with its own
+    // Open Graph preview) the link points to; root app as fallback.
+    let best: { name: string; pct: number } | null = null;
+    PROFILES.forEach((profile) => {
+      let hit = 0;
+      let cmp = 0;
+      Object.keys(answers).forEach((qid) => {
+        const choice = profile.m[qid];
+        if (choice) {
+          cmp++;
+          if (choice === answers[qid]) hit++;
+        }
+      });
+      const pct = cmp > 0 ? hit / cmp : -1;
+      if (pct >= 0 && (!best || pct > best.pct)) best = { name: profile.n, pct };
+    });
+    const slug = best
+      ? (SHARE_PROFILES as Record<string, { slug: string }>)[best.name]?.slug
+      : undefined;
+
+    const base = window.location.origin + window.location.pathname;
+    const target = slug ? `${base}share/${slug}/` : base;
+    const url = new URL(target);
     url.searchParams.set("responses", encodeAnswers(answers));
     url.searchParams.set("v", SHARE_VERSION);
     return url.toString();

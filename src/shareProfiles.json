@@ -1,0 +1,42 @@
+{
+  "Platone": {
+    "slug": "platone",
+    "title": "Il mio 42 è Platone — e il tuo?",
+    "description": "La mia risonanza filosofica più forte è con Platone: le idee, l'anima, il mondo intelligibile. Rispondi alle 37 domande dell'Albero delle Alternative e scopri il tuo personale 42."
+  },
+  "Democrito": {
+    "slug": "democrito",
+    "title": "Il mio 42 è Democrito — e il tuo?",
+    "description": "La mia risonanza filosofica più forte è con Democrito: atomi, vuoto e nessuna finalità. Rispondi alle 37 domande dell'Albero delle Alternative e scopri il tuo personale 42."
+  },
+  "Cartesio": {
+    "slug": "cartesio",
+    "title": "Il mio 42 è Cartesio — e il tuo?",
+    "description": "La mia risonanza filosofica più forte è con Cartesio: dualismo, ragione e certezza del cogito. Rispondi alle 37 domande dell'Albero delle Alternative e scopri il tuo personale 42."
+  },
+  "Spinoza": {
+    "slug": "spinoza",
+    "title": "Il mio 42 è Spinoza — e il tuo?",
+    "description": "La mia risonanza filosofica più forte è con Spinoza: Deus sive Natura, necessità e beatitudine. Rispondi alle 37 domande dell'Albero delle Alternative e scopri il tuo personale 42."
+  },
+  "Kant": {
+    "slug": "kant",
+    "title": "Il mio 42 è Kant — e il tuo?",
+    "description": "La mia risonanza filosofica più forte è con Kant: i limiti della ragione e la legge morale. Rispondi alle 37 domande dell'Albero delle Alternative e scopri il tuo personale 42."
+  },
+  "Darwinismo": {
+    "slug": "darwinismo",
+    "title": "Il mio 42 è il Darwinismo — e il tuo?",
+    "description": "La mia risonanza filosofica più forte è con il Darwinismo: evoluzione, selezione e continuità del vivente. Rispondi alle 37 domande dell'Albero delle Alternative e scopri il tuo personale 42."
+  },
+  "Buddhismo": {
+    "slug": "buddhismo",
+    "title": "Il mio 42 è il Buddhismo — e il tuo?",
+    "description": "La mia risonanza filosofica più forte è con il Buddhismo: impermanenza, non-sé e liberazione. Rispondi alle 37 domande dell'Albero delle Alternative e scopri il tuo personale 42."
+  },
+  "Esistenzialismo ateo": {
+    "slug": "esistenzialismo",
+    "title": "Il mio 42 è l'Esistenzialismo — e il tuo?",
+    "description": "La mia risonanza filosofica più forte è con l'Esistenzialismo ateo: libertà, responsabilità e senso da costruire. Rispondi alle 37 domande dell'Albero delle Alternative e scopri il tuo personale 42."
+  }
+}
