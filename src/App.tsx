@@ -34,11 +34,30 @@ import {
   Profile
 } from "./data";
 
+const ANSWERS_STORAGE_KEY = "albero-alternative-answers";
+
 export default function App() {
   // --- STATE ---
   const [activeTab, setActiveTab] = useState<"intro" | "tree" | "matrix" | "profiles">("intro");
   const [activeQuestionId, setActiveQuestionId] = useState<string>("q1");
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem(ANSWERS_STORAGE_KEY);
+      if (!saved) return {};
+      const parsed = JSON.parse(saved);
+      // Keep only entries that still match a valid question/option pair
+      const valid: Record<string, string> = {};
+      Object.entries(parsed).forEach(([qid, oid]) => {
+        const question = Q.find((q) => q.id === qid);
+        if (question && question.o.some((opt) => opt.id === oid)) {
+          valid[qid] = oid as string;
+        }
+      });
+      return valid;
+    } catch {
+      return {};
+    }
+  });
   const [searchQuery, setSearchQuery] = useState<string>(" ");
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
@@ -69,6 +88,15 @@ export default function App() {
       setAnswers({});
     }
   };
+
+  // Persist answers across sessions
+  useEffect(() => {
+    try {
+      localStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(answers));
+    } catch {
+      // storage unavailable (private mode / quota): keep working in-memory only
+    }
+  }, [answers]);
 
   // Keyboard Navigation for questions in Tree view
   useEffect(() => {
