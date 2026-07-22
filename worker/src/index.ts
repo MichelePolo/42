@@ -9,8 +9,14 @@
 // un rate-limit minimo per client. Il piano free (100k req/giorno, D1 5 GB)
 // copre ampiamente un sito personale.
 
+import { isNicknameAllowed } from "./nickname";
+
 interface Env {
   DB: D1Database;
+  // Secret Wrangler (`wrangler secret put TURNSTILE_SECRET`). Se assente,
+  // la verifica captcha è disattivata e il submit funziona senza token —
+  // così il primo deploy non è bloccato dalla configurazione di Turnstile.
+  TURNSTILE_SECRET?: string;
 }
 
 const RESPONSES_RE = /^[0-5]{37}$/;
@@ -96,6 +102,25 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
     return badRequest("invalid answeredCount");
   }
   if (!RESPONSES_RE.test(responses)) return badRequest("invalid responses");
+  if (!isNicknameAllowed(nickname)) {
+    return badRequest("Nickname non consentito: scegline un altro.");
+  }
+
+  if (env.TURNSTILE_SECRET) {
+    const token = typeof body.turnstileToken === "string" ? body.turnstileToken : "";
+    if (!token) return badRequest("Verifica anti-bot mancante.");
+    const verify = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        secret: env.TURNSTILE_SECRET,
+        response: token,
+        remoteip: request.headers.get("CF-Connecting-IP") ?? undefined
+      })
+    });
+    const outcome = (await verify.json()) as { success: boolean };
+    if (!outcome.success) return badRequest("Verifica anti-bot non superata. Riprova.");
+  }
 
   const now = Date.now();
 

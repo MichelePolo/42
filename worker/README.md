@@ -28,6 +28,31 @@ npm run deploy
 #    → annota l'URL, es. https://albero-42-api.<account>.workers.dev
 ```
 
+## Anti-abuso
+
+Due livelli, entrambi già nel codice:
+
+1. **Moderazione nickname** (sempre attiva): blocklist server-side con
+   normalizzazione anti-elusione (accenti, sostituzioni leet). Vedi
+   `src/nickname.ts` per estendere la lista.
+2. **Cloudflare Turnstile** (captcha invisibile, gratuito — opzionale ma
+   consigliato in produzione):
+
+   ```bash
+   # Dashboard Cloudflare → Turnstile → Add widget
+   #   dominio: michelepolo.github.io (e localhost per lo sviluppo)
+   #   modalità: Invisible
+   # → ottieni Site Key (pubblica) e Secret Key
+
+   cd worker
+   npx wrangler secret put TURNSTILE_SECRET   # incolla la Secret Key
+   ```
+
+   Poi esponi la Site Key al frontend: `VITE_TURNSTILE_SITE_KEY` in
+   `.env.local` (sviluppo) e nelle variabili di repository GitHub
+   (produzione). Senza secret sul Worker il captcha è semplicemente
+   disattivato: il primo deploy non è mai bloccato.
+
 ## Collegare il frontend
 
 - **Sviluppo locale:** crea `.env.local` nella root del progetto (vedi

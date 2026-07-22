@@ -29,6 +29,7 @@ jobs:
           # Variabile di repository (Settings → Secrets and variables → Actions
           # → Variables). Se assente, la classifica gira in modalità demo locale.
           VITE_LEADERBOARD_API: ${{ vars.VITE_LEADERBOARD_API }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

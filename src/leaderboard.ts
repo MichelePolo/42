@@ -6,6 +6,7 @@
 // I componenti UI usano solo l'interfaccia e non sanno quale adapter gira.
 
 import { PROFILES, Q } from "./data";
+import { getTurnstileToken } from "./turnstile";
 
 export type Period = "day" | "week" | "month" | "year";
 
@@ -118,13 +119,21 @@ function createRemoteLeaderboard(baseUrl: string): LeaderboardService {
       }));
     },
     async submit(entry) {
+      const turnstileToken = await getTurnstileToken();
       const res = await fetch(`${api}/api/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...entry, clientId })
+        body: JSON.stringify({ ...entry, clientId, turnstileToken })
       });
       if (res.status === 429) throw new Error("Attendi qualche secondo prima di un nuovo invio.");
-      if (!res.ok) throw new Error(`API error ${res.status}`);
+      if (!res.ok) {
+        // Il Worker risponde { error: "<messaggio leggibile>" }: mostralo.
+        const message = await res
+          .json()
+          .then((d: { error?: string }) => d.error)
+          .catch(() => undefined);
+        throw new Error(message ?? `Errore del servizio (${res.status}).`);
+      }
       saveMyNickname(entry.nickname);
     },
     async recent(limit = 200) {
