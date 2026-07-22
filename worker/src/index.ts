@@ -19,7 +19,9 @@ interface Env {
   TURNSTILE_SECRET?: string;
 }
 
-const RESPONSES_RE = /^[0-5]{37}$/;
+// Codifica posizionale: una cifra 0-5 per domanda. La versione Completa (v1)
+// ha 31 domande; il range copre entrambe le lunghezze possibili dei questionari.
+const RESPONSES_RE = /^[0-5]{20,40}$/;
 const NICKNAME_MAX = 24;
 const PERIOD_MS: Record<string, number> = {
   day: 24 * 3600 * 1000,
