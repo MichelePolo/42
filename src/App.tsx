@@ -36,6 +36,8 @@ import {
   Profile
 } from "./data";
 import SHARE_PROFILES from "./shareProfiles.json";
+import PhilosopherMap from "./PhilosopherMap";
+import Leaderboard from "./Leaderboard";
 
 const ANSWERS_STORAGE_KEY = "albero-alternative-answers";
 const SHARE_VERSION = "1";
@@ -78,7 +80,9 @@ const URL_IMPORT: Record<string, string> | null = (() => {
 
 export default function App() {
   // --- STATE ---
-  const [activeTab, setActiveTab] = useState<"intro" | "tree" | "matrix" | "profiles">(
+  const [activeTab, setActiveTab] = useState<
+    "intro" | "tree" | "matrix" | "profiles" | "map" | "ranking"
+  >(
     URL_IMPORT ? "profiles" : "intro"
   );
   const [activeQuestionId, setActiveQuestionId] = useState<string>("q1");
@@ -386,7 +390,9 @@ export default function App() {
               { id: "intro", label: "Introduzione", icon: BookOpen },
               { id: "tree", label: "Albero", icon: Sprout },
               { id: "matrix", label: "Matrice", icon: Layers },
-              { id: "profiles", label: "Profili", icon: Users }
+              { id: "profiles", label: "Profili", icon: Users },
+              { id: "map", label: "Mappa", icon: Compass },
+              { id: "ranking", label: "Classifiche", icon: Award }
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1081,6 +1087,70 @@ export default function App() {
                     );
                   })}
                 </div>
+              </motion.div>
+            )}
+
+            {/* TAB 4: MAPPA DEI FILOSOFI (PoC) */}
+            {activeTab === "map" && (
+              <motion.div
+                key="map-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-8 animate-fade-in"
+              >
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-mono-tech text-forest-light tracking-wider uppercase mb-2">
+                    <span>§ 31</span>
+                    <span className="text-stone-border">•</span>
+                    <span>La Geografia del Pensiero</span>
+                  </div>
+                  <h2 className="font-display font-semibold text-3xl tracking-tight text-forest-dark">
+                    Mappa dei Filosofi
+                  </h2>
+                  <p className="mt-3 text-forest-sage text-base max-w-3xl leading-relaxed">
+                    Le otto tradizioni disposte su due assi interpretativi —{" "}
+                    <em>Immanenza / Trascendenza</em> e <em>Ragione / Esperienza</em>.
+                    Il tuo punto è il baricentro delle tue affinità: più rispondi, più si assesta.
+                  </p>
+                </div>
+                <PhilosopherMap profileAffinities={profileAffinities} />
+              </motion.div>
+            )}
+
+            {/* TAB 5: CLASSIFICHE (PoC) */}
+            {activeTab === "ranking" && (
+              <motion.div
+                key="ranking-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-8 animate-fade-in"
+              >
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-mono-tech text-forest-light tracking-wider uppercase mb-2">
+                    <span>§ 32</span>
+                    <span className="text-stone-border">•</span>
+                    <span>La Gratificazione Immediata</span>
+                  </div>
+                  <h2 className="font-display font-semibold text-3xl tracking-tight text-forest-dark">
+                    Classifiche
+                  </h2>
+                  <p className="mt-3 text-forest-sage text-base max-w-3xl leading-relaxed">
+                    I top 10 per risonanza col proprio profilo dominante — dell&apos;anno, del mese,
+                    della settimana e di oggi. Filtra per tradizione per scoprire i migliori
+                    Darwinisti, Platonici o Buddhisti del momento.
+                  </p>
+                </div>
+                <Leaderboard
+                  dominantProfileName={
+                    profileAffinities[0]?.compareCount > 0 ? profileAffinities[0].profile.n : null
+                  }
+                  dominantPercentage={profileAffinities[0]?.percentage ?? 0}
+                  answeredCount={Object.keys(answers).length}
+                />
               </motion.div>
             )}
 
