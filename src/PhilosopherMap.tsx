@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Profile } from "./data";
+import { Affinity } from "./affinity";
 
 // --- MAPPA DEI FILOSOFI (PoC) ---
 // Piano cartesiano interpretativo:
@@ -20,12 +21,41 @@ const PROFILE_COORDS: Record<string, { x: number; y: number }> = {
   "Esistenzialismo ateo": { x: -0.55, y: 0.7 }
 };
 
+// Baricentro delle tradizioni pesato col quadrato dell'affinità: il
+// quadrato accentua i profili dominanti, altrimenti percentuali simili
+// schiaccerebbero tutti i punti verso il centro della mappa.
+export function affinityPoint(
+  affinities: Pick<Affinity, "profile" | "percentage" | "compareCount">[]
+): { x: number; y: number } | null {
+  let wx = 0;
+  let wy = 0;
+  let wsum = 0;
+  affinities.forEach(({ profile, percentage, compareCount }) => {
+    const coords = PROFILE_COORDS[profile.n];
+    if (!coords || compareCount === 0) return;
+    const w = (percentage / 100) ** 2;
+    wx += coords.x * w;
+    wy += coords.y * w;
+    wsum += w;
+  });
+  if (wsum === 0) return null;
+  return { x: wx / wsum, y: wy / wsum };
+}
+
+export interface CommunityPoint {
+  nickname: string;
+  x: number;
+  y: number;
+}
+
 interface MapProps {
   profileAffinities: {
     profile: Profile;
     percentage: number;
     compareCount: number;
   }[];
+  /** Le ultime compilazioni degli altri utenti, già proiettate sul piano. */
+  communityPoints?: CommunityPoint[];
 }
 
 const SIZE = 640;
@@ -34,30 +64,15 @@ const PAD = 70;
 // [-1,1] → coordinate SVG
 const px = (v: number) => PAD + ((v + 1) / 2) * (SIZE - 2 * PAD);
 
-export default function PhilosopherMap({ profileAffinities }: MapProps) {
+export default function PhilosopherMap({ profileAffinities, communityPoints = [] }: MapProps) {
   const [hovered, setHovered] = useState<string | null>(null);
 
   const hasData = profileAffinities.some((a) => a.compareCount > 0);
 
-  // Punto dell'utente: baricentro delle tradizioni pesato con il quadrato
-  // dell'affinità — il quadrato accentua i profili dominanti, altrimenti
-  // percentuali simili schiaccerebbero tutto verso il centro.
-  const userPoint = useMemo(() => {
-    if (!hasData) return null;
-    let wx = 0;
-    let wy = 0;
-    let wsum = 0;
-    profileAffinities.forEach(({ profile, percentage, compareCount }) => {
-      const coords = PROFILE_COORDS[profile.n];
-      if (!coords || compareCount === 0) return;
-      const w = (percentage / 100) ** 2;
-      wx += coords.x * w;
-      wy += coords.y * w;
-      wsum += w;
-    });
-    if (wsum === 0) return null;
-    return { x: wx / wsum, y: wy / wsum };
-  }, [profileAffinities, hasData]);
+  const userPoint = useMemo(
+    () => (hasData ? affinityPoint(profileAffinities) : null),
+    [profileAffinities, hasData]
+  );
 
   const dominant = hasData ? profileAffinities[0] : null;
 
@@ -149,6 +164,31 @@ export default function PhilosopherMap({ profileAffinities }: MapProps) {
           );
         })}
 
+        {/* Le ultime compilazioni degli altri utenti */}
+        {communityPoints.map((p, i) => (
+          <g key={`${p.nickname}-${i}`}>
+            <circle
+              cx={px(p.x)}
+              cy={px(p.y)}
+              r="5"
+              fill="var(--color-nature-teal, #4A8A85)"
+              fillOpacity="0.55"
+              stroke="#fff"
+              strokeWidth="1.5"
+            />
+            <text
+              x={px(p.x)}
+              y={px(p.y) - 10}
+              textAnchor="middle"
+              fontSize="9"
+              fill="var(--color-nature-teal, #4A8A85)"
+              className="font-mono-tech"
+            >
+              {p.nickname}
+            </text>
+          </g>
+        ))}
+
         {/* Il punto dell'utente */}
         {userPoint && (
           <g>
@@ -179,6 +219,8 @@ export default function PhilosopherMap({ profileAffinities }: MapProps) {
         {hasData
           ? "Il punto rosa è il baricentro del tuo pensiero, calcolato pesando la posizione di ogni tradizione con la tua affinità. La linea tratteggiata lo collega al tuo profilo dominante."
           : "Rispondi ad alcune domande nell'Albero per veder comparire il tuo punto sulla mappa."}
+        {communityPoints.length > 0 &&
+          ` I punti verde-acqua sono le ultime ${communityPoints.length} compilazioni di altri visitatori.`}
         {" "}Gli assi sono una semplificazione interpretativa: nessun pensatore vive davvero in due sole dimensioni.
       </p>
     </div>

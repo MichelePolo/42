@@ -36,33 +36,14 @@ import {
   Profile
 } from "./data";
 import SHARE_PROFILES from "./shareProfiles.json";
-import PhilosopherMap from "./PhilosopherMap";
+import PhilosopherMap, { affinityPoint, CommunityPoint } from "./PhilosopherMap";
 import Leaderboard from "./Leaderboard";
+import { encodeAnswers, decodeAnswers } from "./answersCodec";
+import { computeAffinities } from "./affinity";
+import { leaderboardService, getClientId } from "./leaderboard";
 
 const ANSWERS_STORAGE_KEY = "albero-alternative-answers";
 const SHARE_VERSION = "1";
-
-// Positional encoding: one char per question in Q order.
-// "0" = unanswered, "1".."5" = 1-based index of the chosen option.
-function encodeAnswers(answers: Record<string, string>): string {
-  return Q.map((q) => {
-    const optIndex = q.o.findIndex((opt) => opt.id === answers[q.id]);
-    return optIndex >= 0 ? String(optIndex + 1) : "0";
-  }).join("");
-}
-
-function decodeAnswers(encoded: string): Record<string, string> | null {
-  if (encoded.length !== Q.length) return null;
-  const decoded: Record<string, string> = {};
-  for (let i = 0; i < Q.length; i++) {
-    const digit = encoded.charCodeAt(i) - 48; // "0" -> 0
-    if (digit === 0) continue;
-    const option = Q[i].o[digit - 1];
-    if (!option) return null;
-    decoded[Q[i].id] = option.id;
-  }
-  return decoded;
-}
 
 // Parsed once at load: answers shared via URL (?responses=...&v=1), or null.
 const URL_IMPORT: Record<string, string> | null = (() => {
@@ -210,35 +191,38 @@ export default function App() {
   }, [searchQuery]);
 
   // Real-time calculation of affinity with 8 profiles
-  const profileAffinities = useMemo(() => {
-    const totalAnswered = Object.keys(answers).length;
+  const profileAffinities = useMemo(() => computeAffinities(answers), [answers]);
 
-    return PROFILES.map((profile) => {
-      let hitCount = 0;
-      let compareCount = 0;
-
-      // Only count questions where the user has provided an answer AND the profile defines a position
-      Object.keys(answers).forEach((qid) => {
-        const profileChoice = profile.m[qid];
-        if (profileChoice) {
-          compareCount++;
-          if (profileChoice === answers[qid]) {
-            hitCount++;
-          }
-        }
+  // Le ultime 10 compilazioni degli altri visitatori, proiettate sul piano
+  // della mappa (caricate quando si apre il tab; la propria è esclusa
+  // perché già rappresentata dal punto "TU" in tempo reale).
+  const [communityPoints, setCommunityPoints] = useState<CommunityPoint[]>([]);
+  useEffect(() => {
+    if (activeTab !== "map") return;
+    let cancelled = false;
+    const myId = getClientId();
+    leaderboardService
+      .recent(11) // una in più: se c'è la mia, resta comunque spazio per 10 altrui
+      .then((results) => {
+        if (cancelled) return;
+        const points = results
+          .filter((r) => r.clientId !== myId)
+          .slice(0, 10)
+          .flatMap((r) => {
+            const decoded = decodeAnswers(r.responses);
+            if (!decoded) return [];
+            const point = affinityPoint(computeAffinities(decoded));
+            return point ? [{ nickname: r.nickname, ...point }] : [];
+          });
+        setCommunityPoints(points);
+      })
+      .catch(() => {
+        // mappa comunque utilizzabile senza i punti della community
       });
-
-      const percentage = compareCount > 0 ? Math.round((hitCount / compareCount) * 100) : 0;
-
-      return {
-        profile,
-        percentage,
-        hitCount,
-        compareCount,
-        totalAnswered
-      };
-    }).sort((a, b) => b.percentage - a.percentage || b.compareCount - a.compareCount);
-  }, [answers]);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   // Answer status summary per cluster
   const clusterProgress = useMemo(() => {
@@ -1115,7 +1099,10 @@ export default function App() {
                     Il tuo punto è il baricentro delle tue affinità: più rispondi, più si assesta.
                   </p>
                 </div>
-                <PhilosopherMap profileAffinities={profileAffinities} />
+                <PhilosopherMap
+                  profileAffinities={profileAffinities}
+                  communityPoints={communityPoints}
+                />
               </motion.div>
             )}
 
@@ -1150,6 +1137,7 @@ export default function App() {
                   }
                   dominantPercentage={profileAffinities[0]?.percentage ?? 0}
                   answeredCount={Object.keys(answers).length}
+                  responsesEncoded={encodeAnswers(answers)}
                 />
               </motion.div>
             )}

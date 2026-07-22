@@ -1,60 +1,89 @@
-import { useMemo, useState } from "react";
-import { Trophy, Medal, UserPlus, Check } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Trophy, Medal, UserPlus, Check, Loader2, CloudOff } from "lucide-react";
 import { PROFILES } from "./data";
 import {
-  createLocalLeaderboard,
+  leaderboardService as service,
+  LeaderboardEntry,
   Period,
   PERIOD_LABELS
 } from "./leaderboard";
 
-// --- CLASSIFICHE (PoC) ---
+// --- CLASSIFICHE ---
 // UI dei "Top 10 dell'anno/mese/settimana/giorno", per profilo dominante.
-// Alimentata dall'adapter locale simulato (vedi leaderboard.ts): l'unica
-// voce reale è quella dell'utente, registrata col pulsante in alto.
-
-const service = createLocalLeaderboard(PROFILES.map((p) => p.n));
+// Parla con il LeaderboardService (Worker+D1 se configurato, mock locale
+// altrimenti); ogni invio registra anche la stringa delle risposte, così
+// lo storico resta ricalcolabile e la mappa può mostrare gli altri utenti.
 
 interface LeaderboardProps {
   dominantProfileName: string | null;
   dominantPercentage: number;
   answeredCount: number;
+  responsesEncoded: string;
 }
 
 export default function Leaderboard({
   dominantProfileName,
   dominantPercentage,
-  answeredCount
+  answeredCount,
+  responsesEncoded
 }: LeaderboardProps) {
   const [period, setPeriod] = useState<Period>("week");
   const [profileFilter, setProfileFilter] = useState<string | null>(null);
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [justSubmitted, setJustSubmitted] = useState(false);
-  // bump forza il ricalcolo dopo submit (il service legge localStorage)
+  const [submitting, setSubmitting] = useState(false);
+  // bump forza il ricaricamento dopo un submit riuscito
   const [bump, setBump] = useState(0);
 
-  const entries = useMemo(
-    () => service.top(period, profileFilter, 10),
-    [period, profileFilter, bump]
-  );
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    service
+      .top(period, profileFilter, 10)
+      .then((data) => {
+        if (!cancelled) setEntries(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Classifica non raggiungibile. Riprova più tardi.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [period, profileFilter, bump]);
 
-  const registeredNickname = service.myNickname();
-  const canSubmit = dominantProfileName !== null && answeredCount > 0;
+  const registeredNickname = useMemo(() => service.myNickname(), [bump]);
+  const canSubmit = dominantProfileName !== null && answeredCount > 0 && !submitting;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit) return;
-    const nickname = window.prompt(
-      "Scegli un nickname per la classifica:",
-      registeredNickname ?? ""
-    )?.trim();
+    const nickname = window
+      .prompt("Scegli un nickname per la classifica (max 24 caratteri):", registeredNickname ?? "")
+      ?.trim()
+      .slice(0, 24);
     if (!nickname) return;
-    service.submit({
-      nickname,
-      profileName: dominantProfileName!,
-      percentage: dominantPercentage,
-      answeredCount
-    });
-    setJustSubmitted(true);
-    setBump((b) => b + 1);
-    setTimeout(() => setJustSubmitted(false), 2500);
+    setSubmitting(true);
+    try {
+      await service.submit({
+        nickname,
+        profileName: dominantProfileName!,
+        percentage: dominantPercentage,
+        answeredCount,
+        responses: responsesEncoded
+      });
+      setJustSubmitted(true);
+      setBump((b) => b + 1);
+      setTimeout(() => setJustSubmitted(false), 2500);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Invio non riuscito. Riprova.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -106,7 +135,11 @@ export default function Leaderboard({
                 : "text-forest-sage border-stone-border/70 hover:text-forest-dark hover:border-forest-sage/60 bg-white"
             }`}
           >
-            {justSubmitted ? (
+            {submitting ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Invio…
+              </>
+            ) : justSubmitted ? (
               <>
                 <Check className="w-3.5 h-3.5" /> Registrato
               </>
@@ -133,45 +166,62 @@ export default function Leaderboard({
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-border/40 text-forest-dark">
-            {entries.map((entry, idx) => (
-              <tr
-                key={`${entry.nickname}-${entry.timestamp}`}
-                className={`transition ${
-                  entry.isMe
-                    ? "bg-nature-gold/10 hover:bg-nature-gold/15"
-                    : "hover:bg-stone-bg/40"
-                }`}
-              >
-                <td className="py-3 px-5 font-mono-tech">
-                  {idx === 0 ? (
-                    <Trophy className="w-4 h-4 text-nature-gold" />
-                  ) : idx <= 2 ? (
-                    <Medal className="w-4 h-4 text-forest-light" />
-                  ) : (
-                    <span className="text-forest-light">{idx + 1}</span>
-                  )}
-                </td>
-                <td className="py-3 px-5 font-display font-semibold">
-                  {entry.nickname}
-                  {entry.isMe && (
-                    <span className="ml-2 text-[9px] font-mono-tech uppercase tracking-widest text-nature-gold">
-                      Tu
-                    </span>
-                  )}
-                </td>
-                <td className="py-3 px-5 text-forest-medium">{entry.profileName}</td>
-                <td className="py-3 px-5 text-right font-mono-tech font-bold">
-                  {entry.percentage}%
-                </td>
-                <td className="py-3 px-5 text-right font-mono-tech text-forest-sage">
-                  {entry.answeredCount}
+            {loading && (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-forest-light">
+                  <Loader2 className="w-5 h-5 animate-spin inline-block" />
                 </td>
               </tr>
-            ))}
-            {entries.length === 0 && (
+            )}
+            {!loading && error && (
               <tr>
                 <td colSpan={5} className="py-8 text-center text-forest-light italic font-serif-body">
-                  Nessuna voce in questo periodo.
+                  <CloudOff className="w-4 h-4 inline-block mr-2" />
+                  {error}
+                </td>
+              </tr>
+            )}
+            {!loading &&
+              !error &&
+              entries.map((entry, idx) => (
+                <tr
+                  key={`${entry.nickname}-${entry.timestamp}`}
+                  className={`transition ${
+                    entry.isMe
+                      ? "bg-nature-gold/10 hover:bg-nature-gold/15"
+                      : "hover:bg-stone-bg/40"
+                  }`}
+                >
+                  <td className="py-3 px-5 font-mono-tech">
+                    {idx === 0 ? (
+                      <Trophy className="w-4 h-4 text-nature-gold" />
+                    ) : idx <= 2 ? (
+                      <Medal className="w-4 h-4 text-forest-light" />
+                    ) : (
+                      <span className="text-forest-light">{idx + 1}</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-5 font-display font-semibold">
+                    {entry.nickname}
+                    {entry.isMe && (
+                      <span className="ml-2 text-[9px] font-mono-tech uppercase tracking-widest text-nature-gold">
+                        Tu
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-5 text-forest-medium">{entry.profileName}</td>
+                  <td className="py-3 px-5 text-right font-mono-tech font-bold">
+                    {entry.percentage}%
+                  </td>
+                  <td className="py-3 px-5 text-right font-mono-tech text-forest-sage">
+                    {entry.answeredCount}
+                  </td>
+                </tr>
+              ))}
+            {!loading && !error && entries.length === 0 && (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-forest-light italic font-serif-body">
+                  Nessuna voce in questo periodo. Sii la prima o il primo!
                 </td>
               </tr>
             )}
@@ -179,12 +229,13 @@ export default function Leaderboard({
         </table>
       </div>
 
-      <p className="text-xs text-forest-sage font-sans-ui leading-relaxed max-w-3xl">
-        <strong>PoC:</strong> le voci in classifica (tranne la tua) sono simulate
-        localmente. Il servizio è progettato dietro un&apos;interfaccia
-        (<code>LeaderboardService</code>) sostituibile con un backend reale
-        — Firebase, Supabase o un Cloudflare Worker — senza modifiche alla UI.
-      </p>
+      {!service.isRemote && (
+        <p className="text-xs text-forest-sage font-sans-ui leading-relaxed max-w-3xl">
+          <strong>Modalità demo:</strong> le voci in classifica (tranne la tua) sono
+          simulate localmente perché <code>VITE_LEADERBOARD_API</code> non è
+          configurata. Vedi <code>worker/README.md</code> per il deploy del backend.
+        </p>
+      )}
     </div>
   );
 }

@@ -1,11 +1,11 @@
-// --- LEADERBOARD (PoC) ---
-// Il sito è statico (GitHub Pages): non esiste un backend condiviso.
-// Questo modulo definisce l'interfaccia del servizio classifica e la
-// implementa con un adapter locale (dati simulati + punteggi reali
-// dell'utente in localStorage). Per andare in produzione basta
-// sostituire `createLocalLeaderboard` con un adapter remoto
-// (Firebase / Supabase / Cloudflare Worker) che rispetti la stessa
-// interfaccia: i componenti UI non cambiano.
+// --- LEADERBOARD ---
+// Interfaccia del servizio classifica con due adapter:
+//  - remoto: Cloudflare Worker + D1 (attivo se VITE_LEADERBOARD_API è definita)
+//  - locale: dati simulati + punteggio dell'utente in localStorage (fallback
+//    di sviluppo, così l'app funziona anche senza backend deployato)
+// I componenti UI usano solo l'interfaccia e non sanno quale adapter gira.
+
+import { PROFILES, Q } from "./data";
 
 export type Period = "day" | "week" | "month" | "year";
 
@@ -18,13 +18,33 @@ export interface LeaderboardEntry {
   isMe?: boolean;
 }
 
+export interface RecentResult {
+  clientId: string;
+  nickname: string;
+  profileName: string;
+  responses: string; // codifica posizionale delle risposte (37 cifre)
+  timestamp: number;
+}
+
+export interface SubmitPayload {
+  nickname: string;
+  profileName: string;
+  percentage: number;
+  answeredCount: number;
+  responses: string;
+}
+
 export interface LeaderboardService {
   /** Top N per profilo e periodo (tutti i profili se profileName è null). */
-  top(period: Period, profileName: string | null, limit?: number): LeaderboardEntry[];
-  /** Registra (o aggiorna) il punteggio dell'utente corrente. */
-  submit(entry: Omit<LeaderboardEntry, "timestamp" | "isMe">): void;
-  /** Nickname già registrato, se presente. */
+  top(period: Period, profileName: string | null, limit?: number): Promise<LeaderboardEntry[]>;
+  /** Registra il punteggio dell'utente corrente (una riga storica per invio). */
+  submit(entry: SubmitPayload): Promise<void>;
+  /** Ultimi risultati (uno per utente), per la mappa. */
+  recent(limit?: number): Promise<RecentResult[]>;
+  /** Nickname già registrato in questo browser, se presente. */
   myNickname(): string | null;
+  /** True se i dati sono condivisi davvero (adapter remoto attivo). */
+  isRemote: boolean;
 }
 
 export const PERIOD_LABELS: Record<Period, string> = {
@@ -42,9 +62,83 @@ const PERIOD_MS: Record<Period, number> = {
 };
 
 const MY_ENTRY_KEY = "albero-alternative-leaderboard-me";
+const CLIENT_ID_KEY = "albero-alternative-client-id";
 
-// Seed deterministico: nickname finti con età (frazione del periodo "year")
-// e punteggi plausibili, distribuiti sugli 8 profili.
+// Identità anonima e stabile per browser: deduplica la classifica
+// (un piazzamento per dispositivo) senza alcun dato personale.
+export function getClientId(): string {
+  try {
+    let id = localStorage.getItem(CLIENT_ID_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(CLIENT_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return "00000000-0000-4000-8000-000000000000";
+  }
+}
+
+function saveMyNickname(nickname: string) {
+  try {
+    localStorage.setItem(MY_ENTRY_KEY, JSON.stringify({ nickname }));
+  } catch {
+    // storage non disponibile: pazienza, si perde solo il pre-riempimento
+  }
+}
+
+function loadMyNickname(): string | null {
+  try {
+    const raw = localStorage.getItem(MY_ENTRY_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return typeof parsed.nickname === "string" ? parsed.nickname : null;
+  } catch {
+    return null;
+  }
+}
+
+// --- ADAPTER REMOTO (Cloudflare Worker + D1) ---
+
+function createRemoteLeaderboard(baseUrl: string): LeaderboardService {
+  const clientId = getClientId();
+  const api = baseUrl.replace(/\/$/, "");
+
+  return {
+    isRemote: true,
+    async top(period, profileName, limit = 10) {
+      const params = new URLSearchParams({ period, limit: String(limit) });
+      if (profileName) params.set("profile", profileName);
+      const res = await fetch(`${api}/api/top?${params}`);
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const data = await res.json();
+      return (data.entries as (LeaderboardEntry & { clientId: string })[]).map((e) => ({
+        ...e,
+        isMe: e.clientId === clientId
+      }));
+    },
+    async submit(entry) {
+      const res = await fetch(`${api}/api/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...entry, clientId })
+      });
+      if (res.status === 429) throw new Error("Attendi qualche secondo prima di un nuovo invio.");
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      saveMyNickname(entry.nickname);
+    },
+    async recent(limit = 200) {
+      const res = await fetch(`${api}/api/recent?limit=${limit}`);
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const data = await res.json();
+      return data.entries as RecentResult[];
+    },
+    myNickname: loadMyNickname
+  };
+}
+
+// --- ADAPTER LOCALE SIMULATO (fallback di sviluppo) ---
+
 const SEED_NAMES = [
   "NomadeStellare", "Alba42", "IlDubbioso", "Petricore", "Entropia",
   "VelaNera", "Miriade", "Fenice_K", "Ombra&Luce", "Talpa Cosmica",
@@ -65,27 +159,26 @@ function mulberry32(seed: number) {
   };
 }
 
-function buildSeed(profileNames: string[], now: number): LeaderboardEntry[] {
+function createLocalLeaderboard(profileNames: string[]): LeaderboardService {
   const rand = mulberry32(42);
-  return SEED_NAMES.map((nickname, i) => ({
-    nickname,
-    profileName: profileNames[Math.floor(rand() * profileNames.length)],
-    percentage: 55 + Math.floor(rand() * 44), // 55–98%
-    answeredCount: 20 + Math.floor(rand() * 18), // 20–37
-    // Età sparsa nell'ultimo anno, con metà dei casi nell'ultima settimana
-    // così ogni periodo (giorno/settimana/mese/anno) ha abbastanza voci.
-    timestamp:
-      now -
-      Math.floor(
-        (i % 2 === 0 ? rand() * PERIOD_MS.week : rand() * PERIOD_MS.year)
-      )
-  }));
-}
+  const now = Date.now();
+  const seed: (LeaderboardEntry & { responses: string })[] = SEED_NAMES.map(
+    (nickname, i) => ({
+      nickname,
+      profileName: profileNames[Math.floor(rand() * profileNames.length)],
+      percentage: 55 + Math.floor(rand() * 44),
+      answeredCount: 20 + Math.floor(rand() * 18),
+      // Risposte casuali valide (rispettano il numero di opzioni di ogni
+      // domanda), così anche la mappa ha punti demo decodificabili.
+      responses: Q.map((q) => String(1 + Math.floor(rand() * q.o.length))).join(""),
+      // Metà delle voci nell'ultima settimana: ogni periodo ha dati.
+      timestamp:
+        now -
+        Math.floor(i % 2 === 0 ? rand() * PERIOD_MS.week : rand() * PERIOD_MS.year)
+    })
+  );
 
-export function createLocalLeaderboard(profileNames: string[]): LeaderboardService {
-  const seed = buildSeed(profileNames, Date.now());
-
-  const loadMine = (): LeaderboardEntry | null => {
+  const loadMine = (): (LeaderboardEntry & { responses?: string }) | null => {
     try {
       const raw = localStorage.getItem(MY_ENTRY_KEY);
       if (!raw) return null;
@@ -98,10 +191,11 @@ export function createLocalLeaderboard(profileNames: string[]): LeaderboardServi
   };
 
   return {
-    top(period, profileName, limit = 10) {
+    isRemote: false,
+    async top(period, profileName, limit = 10) {
       const cutoff = Date.now() - PERIOD_MS[period];
       const mine = loadMine();
-      const pool = mine ? [...seed, mine] : seed;
+      const pool = mine ? [...seed, mine as LeaderboardEntry] : seed;
       return pool
         .filter(
           (e) =>
@@ -116,7 +210,7 @@ export function createLocalLeaderboard(profileNames: string[]): LeaderboardServi
         )
         .slice(0, limit);
     },
-    submit(entry) {
+    async submit(entry) {
       try {
         localStorage.setItem(
           MY_ENTRY_KEY,
@@ -126,8 +220,29 @@ export function createLocalLeaderboard(profileNames: string[]): LeaderboardServi
         // storage non disponibile: la voce vive solo in memoria di sessione
       }
     },
-    myNickname() {
-      return loadMine()?.nickname ?? null;
-    }
+    async recent(limit = 200) {
+      const mine = loadMine();
+      const pool = mine?.responses
+        ? [...seed, { ...(mine as Required<typeof mine>), isMe: true }]
+        : seed;
+      return pool.slice(0, limit).map((e, i) => ({
+        clientId: e.isMe ? getClientId() : `seed-${i}`,
+        nickname: e.nickname,
+        profileName: e.profileName,
+        responses: e.responses!,
+        timestamp: e.timestamp
+      }));
+    },
+    myNickname: () => loadMine()?.nickname ?? null
   };
 }
+
+// --- FACTORY / SINGLETON ---
+
+export function createLeaderboard(profileNames: string[]): LeaderboardService {
+  const apiUrl = import.meta.env.VITE_LEADERBOARD_API;
+  return apiUrl ? createRemoteLeaderboard(apiUrl) : createLocalLeaderboard(profileNames);
+}
+
+// Istanza unica condivisa da classifica e mappa.
+export const leaderboardService = createLeaderboard(PROFILES.map((p) => p.n));
