@@ -144,6 +144,10 @@ export default function PhilosopherMap({ profileAffinities, communityPoints = []
                 fontSize="13"
                 fontWeight={isDominant ? 700 : 500}
                 fill="#3D4238"
+                stroke="#fff"
+                strokeWidth={3.5}
+                strokeLinejoin="round"
+                paintOrder="stroke"
                 className="font-display"
               >
                 {profile.n}
@@ -155,6 +159,10 @@ export default function PhilosopherMap({ profileAffinities, communityPoints = []
                   textAnchor="middle"
                   fontSize="10"
                   fill="#5C6152"
+                  stroke="#fff"
+                  strokeWidth={2.5}
+                  strokeLinejoin="round"
+                  paintOrder="stroke"
                   className="font-mono-tech"
                 >
                   {percentage}%
@@ -182,6 +190,10 @@ export default function PhilosopherMap({ profileAffinities, communityPoints = []
               textAnchor="middle"
               fontSize="9"
               fill="var(--color-nature-teal, #4A8A85)"
+              stroke="#fff"
+              strokeWidth={2.5}
+              strokeLinejoin="round"
+              paintOrder="stroke"
               className="font-mono-tech"
             >
               {p.nickname}
@@ -200,13 +212,20 @@ export default function PhilosopherMap({ profileAffinities, communityPoints = []
               stroke="#fff"
               strokeWidth="2.5"
             />
+            {/* Etichetta "TU" a destra del pallino (a sinistra se il punto è
+                nella metà destra), fuori dalla colonna verticale dove cadono
+                le etichette dei filosofi, con alone bianco per leggibilità. */}
             <text
-              x={px(userPoint.x)}
-              y={px(userPoint.y) + 26}
-              textAnchor="middle"
+              x={px(userPoint.x) + (userPoint.x > 0.35 ? -14 : 14)}
+              y={px(userPoint.y) + 4}
+              textAnchor={userPoint.x > 0.35 ? "end" : "start"}
               fontSize="12"
               fontWeight="700"
               fill="var(--color-nature-rose, #B56576)"
+              stroke="#fff"
+              strokeWidth={3.5}
+              strokeLinejoin="round"
+              paintOrder="stroke"
               className="font-display"
             >
               TU
