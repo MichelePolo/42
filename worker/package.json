@@ -1,0 +1,16 @@
+{
+  "name": "albero-42-api",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create albero-42",
+    "db:schema": "wrangler d1 execute albero-42 --remote --file=./schema.sql",
+    "db:schema:local": "wrangler d1 execute albero-42 --local --file=./schema.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260721.1",
+    "typescript": "^5.5.0",
+    "wrangler": "^4.0.0"
+  }
+}

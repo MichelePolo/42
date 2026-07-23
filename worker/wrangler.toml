@@ -1,0 +1,9 @@
+name = "albero-42-api"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+# Dopo `wrangler d1 create albero-42` sostituisci database_id con quello reale.
+[[d1_databases]]
+binding = "DB"
+database_name = "albero-42"
+database_id = "0ada250c-564e-4ec2-b483-66d363837d3f"

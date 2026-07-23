@@ -25,63 +25,46 @@ import {
   Check
 } from "lucide-react";
 
-import {
-  CLUSTERS,
-  Q,
-  MATRIX,
-  MCOL,
-  PROFILES,
-  Question,
-  Option,
-  Profile
-} from "./data";
+import { Question, Option, Profile } from "./data";
 import SHARE_PROFILES from "./shareProfiles.json";
+import PhilosopherMap, { affinityPoint, CommunityPoint } from "./PhilosopherMap";
+import Leaderboard from "./Leaderboard";
+import { encodeAnswers, decodeAnswers } from "./answersCodec";
+import { computeAffinities } from "./affinity";
+import { getLeaderboardService, getClientId } from "./leaderboard";
+import { useVariant } from "./variants";
 
-const ANSWERS_STORAGE_KEY = "albero-alternative-answers";
-const SHARE_VERSION = "1";
-
-// Positional encoding: one char per question in Q order.
-// "0" = unanswered, "1".."5" = 1-based index of the chosen option.
-function encodeAnswers(answers: Record<string, string>): string {
-  return Q.map((q) => {
-    const optIndex = q.o.findIndex((opt) => opt.id === answers[q.id]);
-    return optIndex >= 0 ? String(optIndex + 1) : "0";
-  }).join("");
-}
-
-function decodeAnswers(encoded: string): Record<string, string> | null {
-  if (encoded.length !== Q.length) return null;
-  const decoded: Record<string, string> = {};
-  for (let i = 0; i < Q.length; i++) {
-    const digit = encoded.charCodeAt(i) - 48; // "0" -> 0
-    if (digit === 0) continue;
-    const option = Q[i].o[digit - 1];
-    if (!option) return null;
-    decoded[Q[i].id] = option.id;
-  }
-  return decoded;
-}
-
-// Parsed once at load: answers shared via URL (?responses=...&v=1), or null.
-const URL_IMPORT: Record<string, string> | null = (() => {
+// Risposte condivise via URL (?responses=...&v=N) per uno specifico
+// questionario, oppure null. Dipende dal dataset attivo (le domande e la
+// versione cambiano fra legacy e v1), quindi è una funzione, non una costante.
+function readUrlImport(
+  questions: Question[],
+  shareVersion: string
+): Record<string, string> | null {
   try {
     const params = new URLSearchParams(window.location.search);
     const encoded = params.get("responses");
     if (!encoded) return null;
-    if ((params.get("v") ?? SHARE_VERSION) !== SHARE_VERSION) return null;
-    const decoded = decodeAnswers(encoded);
+    if ((params.get("v") ?? shareVersion) !== shareVersion) return null;
+    const decoded = decodeAnswers(encoded, questions);
     return decoded && Object.keys(decoded).length > 0 ? decoded : null;
   } catch {
     return null;
   }
-})();
+}
 
 export default function App() {
+  const variant = useVariant();
+  const { CLUSTERS, Q, MATRIX, MCOL, PROFILES } = variant.dataset;
+  const { enableCommunity, storageKey: ANSWERS_STORAGE_KEY, shareVersion: SHARE_VERSION } = variant;
+
+  // Import da URL: calcolato una sola volta all'avvio per il dataset corrente.
+  const URL_IMPORT = useRef(readUrlImport(Q, SHARE_VERSION)).current;
+
   // --- STATE ---
-  const [activeTab, setActiveTab] = useState<"intro" | "tree" | "matrix" | "profiles">(
-    URL_IMPORT ? "profiles" : "intro"
-  );
-  const [activeQuestionId, setActiveQuestionId] = useState<string>("q1");
+  type Tab = "intro" | "tree" | "matrix" | "profiles" | "map" | "ranking";
+  const [activeTab, setActiveTab] = useState<Tab>(URL_IMPORT ? "profiles" : "intro");
+  const [activeQuestionId, setActiveQuestionId] = useState<string>(Q[0].id);
   // While true, answers came from a shared URL and must not overwrite
   // the visitor's own localStorage until they interact.
   const viewingSharedResult = useRef<boolean>(URL_IMPORT !== null);
@@ -205,36 +188,42 @@ export default function App() {
     }).filter((cluster) => cluster.questions && cluster.questions.length > 0);
   }, [searchQuery]);
 
-  // Real-time calculation of affinity with 8 profiles
-  const profileAffinities = useMemo(() => {
-    const totalAnswered = Object.keys(answers).length;
+  // Real-time calculation of affinity with the profiles of this dataset
+  const profileAffinities = useMemo(
+    () => computeAffinities(answers, PROFILES),
+    [answers, PROFILES]
+  );
 
-    return PROFILES.map((profile) => {
-      let hitCount = 0;
-      let compareCount = 0;
-
-      // Only count questions where the user has provided an answer AND the profile defines a position
-      Object.keys(answers).forEach((qid) => {
-        const profileChoice = profile.m[qid];
-        if (profileChoice) {
-          compareCount++;
-          if (profileChoice === answers[qid]) {
-            hitCount++;
-          }
-        }
+  // Le ultime 10 compilazioni degli altri visitatori, proiettate sul piano
+  // della mappa (caricate quando si apre il tab; la propria è esclusa
+  // perché già rappresentata dal punto "TU" in tempo reale).
+  const [communityPoints, setCommunityPoints] = useState<CommunityPoint[]>([]);
+  useEffect(() => {
+    if (!enableCommunity || activeTab !== "map") return;
+    let cancelled = false;
+    const myId = getClientId();
+    getLeaderboardService(variant.dataset)
+      .recent(11) // una in più: se c'è la mia, resta comunque spazio per 10 altrui
+      .then((results) => {
+        if (cancelled) return;
+        const points = results
+          .filter((r) => r.clientId !== myId)
+          .slice(0, 10)
+          .flatMap((r) => {
+            const decoded = decodeAnswers(r.responses, Q);
+            if (!decoded) return [];
+            const point = affinityPoint(computeAffinities(decoded, PROFILES));
+            return point ? [{ nickname: r.nickname, ...point }] : [];
+          });
+        setCommunityPoints(points);
+      })
+      .catch(() => {
+        // mappa comunque utilizzabile senza i punti della community
       });
-
-      const percentage = compareCount > 0 ? Math.round((hitCount / compareCount) * 100) : 0;
-
-      return {
-        profile,
-        percentage,
-        hitCount,
-        compareCount,
-        totalAnswered
-      };
-    }).sort((a, b) => b.percentage - a.percentage || b.compareCount - a.compareCount);
-  }, [answers]);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, enableCommunity, Q, PROFILES]);
 
   // Answer status summary per cluster
   const clusterProgress = useMemo(() => {
@@ -299,10 +288,14 @@ export default function App() {
       
       {/* --- HEADER --- */}
       <header className="sticky top-0 z-50 bg-stone-bg/90 backdrop-blur-md border-b border-stone-border/70">
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row items-center justify-between gap-4">
-          
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col gap-3">
+
+          {/* Prima riga: brand + firma vettoriale 𝒲. Stacked su mobile,
+              affiancati da tablet in su. La navigazione va sempre a capo. */}
+          <div className="flex flex-col md:flex-row items-center md:justify-between gap-4 w-full">
+
           {/* Logo & Brand */}
-          <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
+          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
             <button
               onClick={() => setIsSidebarOpen(true)}
               className="lg:hidden p-2 rounded-lg hover:bg-stone-accent border border-stone-border transition"
@@ -380,13 +373,22 @@ export default function App() {
             <span className="font-mono-tech text-forest-light text-sm ml-1 hidden sm:inline">⟩</span>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex bg-stone-accent/60 p-1 rounded-xl border border-stone-border/80 w-full lg:w-auto overflow-x-auto lg:overflow-x-hidden whitespace-nowrap">
+          </div>{/* fine prima riga */}
+
+          {/* Navigation Tabs — sempre a capo, riga a tutta larghezza.
+              Stacked in colonna su mobile, in riga da tablet in su. */}
+          <nav className="flex flex-col sm:flex-row sm:flex-wrap sm:justify-center bg-stone-accent/60 p-1 rounded-xl border border-stone-border/80 w-full gap-1">
             {[
               { id: "intro", label: "Introduzione", icon: BookOpen },
               { id: "tree", label: "Albero", icon: Sprout },
               { id: "matrix", label: "Matrice", icon: Layers },
-              { id: "profiles", label: "Profili", icon: Users }
+              { id: "profiles", label: "Profili", icon: Users },
+              ...(enableCommunity
+                ? [
+                    { id: "map", label: "Mappa", icon: Compass },
+                    { id: "ranking", label: "Classifiche", icon: Award }
+                  ]
+                : [])
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -397,7 +399,7 @@ export default function App() {
                     setActiveTab(tab.id as any);
                     setIsSidebarOpen(false);
                   }}
-                  className={`flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg font-sans-ui text-xs font-medium uppercase tracking-wider transition shrink-0 ${
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg font-sans-ui text-xs font-medium uppercase tracking-wider transition ${
                     isActive
                       ? "bg-white text-forest-dark shadow-xs border border-stone-border/40"
                       : "text-forest-sage hover:text-forest-dark"
@@ -410,7 +412,7 @@ export default function App() {
                 </button>
               );
             })}
-          </div>
+          </nav>
 
         </div>
       </header>
@@ -553,7 +555,7 @@ export default function App() {
                       E Tu quale interpretazione dai alla vita?
                     </h3>
                     <p className="text-sm text-forest-sage leading-relaxed font-sans-ui">
-                      A seguire un'operazione insiemistica: <strong>37 domande</strong> cercheranno di individuare il Tuo centro, il Tuo personale <strong>42</strong>.
+                      A seguire un'operazione insiemistica: <strong>{Q.length} domande</strong> cercheranno di individuare il Tuo centro, il Tuo personale <strong>42</strong>.
                     </p>
                     <p className="text-sm text-forest-sage leading-relaxed font-sans-ui">
                       Se Ti va di condividete il risultato, nella condivisione e nella discussione con gli altri sta probabilmente il valore della conoscenza. <br />
@@ -870,7 +872,7 @@ export default function App() {
                     Matrice Minima
                   </h2>
                   <p className="mt-3 text-forest-sage text-base max-w-3xl leading-relaxed">
-                    Ventidue domande fondamentali ridotte alla loro essenza binaria con la terza uscita sempre in luce. Le celle evidenziate indicano le tue scelte correnti. Clicca sul testo di una domanda per approfondirla nella visualizzazione ad albero.
+                    {MATRIX.length} domande fondamentali ridotte alla loro essenza binaria con la terza uscita sempre in luce. Le celle evidenziate indicano le tue scelte correnti. Clicca sul testo di una domanda per approfondirla nella visualizzazione ad albero.
                   </p>
                 </div>
 
@@ -1084,6 +1086,74 @@ export default function App() {
               </motion.div>
             )}
 
+            {/* TAB 4: MAPPA DEI FILOSOFI */}
+            {enableCommunity && activeTab === "map" && (
+              <motion.div
+                key="map-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-8 animate-fade-in"
+              >
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-mono-tech text-forest-light tracking-wider uppercase mb-2">
+                    <span>§ 31</span>
+                    <span className="text-stone-border">•</span>
+                    <span>La Geografia del Pensiero</span>
+                  </div>
+                  <h2 className="font-display font-semibold text-3xl tracking-tight text-forest-dark">
+                    Mappa dei Filosofi
+                  </h2>
+                  <p className="mt-3 text-forest-sage text-base max-w-3xl leading-relaxed">
+                    Le otto tradizioni disposte su due assi interpretativi —{" "}
+                    <em>Immanenza / Trascendenza</em> e <em>Ragione / Esperienza</em>.
+                    Il tuo punto è il baricentro delle tue affinità: più rispondi, più si assesta.
+                  </p>
+                </div>
+                <PhilosopherMap
+                  profileAffinities={profileAffinities}
+                  communityPoints={communityPoints}
+                />
+              </motion.div>
+            )}
+
+            {/* TAB 5: CLASSIFICHE */}
+            {enableCommunity && activeTab === "ranking" && (
+              <motion.div
+                key="ranking-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-8 animate-fade-in"
+              >
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-mono-tech text-forest-light tracking-wider uppercase mb-2">
+                    <span>§ 32</span>
+                    <span className="text-stone-border">•</span>
+                    <span>La Gratificazione Immediata</span>
+                  </div>
+                  <h2 className="font-display font-semibold text-3xl tracking-tight text-forest-dark">
+                    Classifiche
+                  </h2>
+                  <p className="mt-3 text-forest-sage text-base max-w-3xl leading-relaxed">
+                    I top 10 per risonanza col proprio profilo dominante — dell&apos;anno, del mese,
+                    della settimana e di oggi. Filtra per tradizione per scoprire i migliori
+                    Darwinisti, Platonici o Buddhisti del momento.
+                  </p>
+                </div>
+                <Leaderboard
+                  dominantProfileName={
+                    profileAffinities[0]?.compareCount > 0 ? profileAffinities[0].profile.n : null
+                  }
+                  dominantPercentage={profileAffinities[0]?.percentage ?? 0}
+                  answeredCount={Object.keys(answers).length}
+                  responsesEncoded={encodeAnswers(answers, Q)}
+                />
+              </motion.div>
+            )}
+
           </AnimatePresence>
         </main>
       </div>
@@ -1143,6 +1213,7 @@ function SidebarContent({
   answers,
   onSelectClose
 }: SidebarProps) {
+  const { Q } = useVariant().dataset;
   return (
     <div className="space-y-5 h-full flex flex-col">
       {/* Search Bar */}
@@ -1255,33 +1326,39 @@ function ShareButton({
   answeredCount: number;
 }) {
   const [copied, setCopied] = useState(false);
+  const variant = useVariant();
+  const { PROFILES, Q } = variant.dataset;
 
   const buildShareUrl = () => {
-    // Top-resonance profile decides which share page (with its own
-    // Open Graph preview) the link points to; root app as fallback.
-    let best: { name: string; pct: number } | null = null;
-    PROFILES.forEach((profile) => {
-      let hit = 0;
-      let cmp = 0;
-      Object.keys(answers).forEach((qid) => {
-        const choice = profile.m[qid];
-        if (choice) {
-          cmp++;
-          if (choice === answers[qid]) hit++;
-        }
-      });
-      const pct = cmp > 0 ? hit / cmp : -1;
-      if (pct >= 0 && (!best || pct > best.pct)) best = { name: profile.n, pct };
-    });
-    const slug = best
-      ? (SHARE_PROFILES as Record<string, { slug: string }>)[best.name]?.slug
-      : undefined;
-
     const base = window.location.origin + window.location.pathname;
-    const target = slug ? `${base}share/${slug}/` : base;
+    let target = base;
+
+    // Solo la versione legacy ha le pagine share statiche per-profilo con
+    // anteprima Open Graph: il profilo dominante decide quale pagina linkare.
+    if (variant.useProfileSharePages) {
+      let best: { name: string; pct: number } | null = null;
+      PROFILES.forEach((profile) => {
+        let hit = 0;
+        let cmp = 0;
+        Object.keys(answers).forEach((qid) => {
+          const choice = profile.m[qid];
+          if (choice) {
+            cmp++;
+            if (choice === answers[qid]) hit++;
+          }
+        });
+        const pct = cmp > 0 ? hit / cmp : -1;
+        if (pct >= 0 && (!best || pct > best.pct)) best = { name: profile.n, pct };
+      });
+      const slug = best
+        ? (SHARE_PROFILES as Record<string, { slug: string }>)[best.name]?.slug
+        : undefined;
+      if (slug) target = `${base}share/${slug}/`;
+    }
+
     const url = new URL(target);
-    url.searchParams.set("responses", encodeAnswers(answers));
-    url.searchParams.set("v", SHARE_VERSION);
+    url.searchParams.set("responses", encodeAnswers(answers, Q));
+    url.searchParams.set("v", variant.shareVersion);
     return url.toString();
   };
 
