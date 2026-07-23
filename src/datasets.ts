@@ -8,22 +8,25 @@ import {
 } from "./dataV2";
 import { Variant } from "./variants";
 
-// Route "/" — versione storica Light, senza database (né mappa né classifiche).
-// Mantiene la chiave localStorage di produzione e le pagine share con Open Graph.
-export const LEGACY_VARIANT: Variant = {
-  id: "legacy",
+// Questionario Light storico (37 domande), senza database. Ora servito alla
+// route secondaria "/v1/". Mantiene la chiave localStorage di produzione e la
+// propria versione di condivisione, così le risposte salvate dei vecchi utenti
+// e i vecchi link continuano a funzionare dopo lo scambio dei path.
+export const LIGHT_VARIANT: Variant = {
+  id: "light",
   dataset: { CLUSTERS, Q, MATRIX, MCOL, PROFILES },
   enableCommunity: false,
   storageKey: "albero-alternative-answers",
   shareVersion: "1",
-  useProfileSharePages: true
+  useProfileSharePages: false
 };
 
-// Route "/v1/" — versione Completa (31 domande), con mappa e classifiche
-// alimentate dal backend. Storage e versione di condivisione distinti, così i
-// dati e i link delle due versioni non si mescolano mai.
-export const V1_VARIANT: Variant = {
-  id: "v1",
+// Questionario Completo (31 domande), con mappa e classifiche dal backend.
+// È la versione principale, servita alla route "/". Usa le pagine share
+// statiche con anteprima Open Graph (generate in dist/share/). Storage e
+// versione di condivisione distinti da Light: dati e link non si mescolano mai.
+export const COMPLETA_VARIANT: Variant = {
+  id: "completa",
   dataset: {
     CLUSTERS: CLUSTERS_V2,
     Q: Q_V2,
@@ -34,5 +37,5 @@ export const V1_VARIANT: Variant = {
   enableCommunity: true,
   storageKey: "albero-42-v1-answers",
   shareVersion: "2",
-  useProfileSharePages: false
+  useProfileSharePages: true
 };

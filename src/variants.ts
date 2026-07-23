@@ -14,7 +14,7 @@ export interface Dataset {
 }
 
 export interface Variant {
-  id: "legacy" | "v1";
+  id: "light" | "completa";
   dataset: Dataset;
   /** Abilita i tab Mappa e Classifiche (e quindi il backend). */
   enableCommunity: boolean;
