@@ -27,9 +27,9 @@ import {
 } from "lucide-react";
 
 import { Question, Option, Profile } from "./data";
-import SHARE_PROFILES from "./shareProfiles.json";
 import PhilosopherMap, { affinityPoint, CommunityPoint } from "./PhilosopherMap";
 import Leaderboard from "./Leaderboard";
+import EnterRankingButton from "./EnterRankingButton";
 import { encodeAnswers, decodeAnswers } from "./answersCodec";
 import { computeAffinities } from "./affinity";
 import { getLeaderboardService, getClientId } from "./leaderboard";
@@ -226,7 +226,10 @@ export default function App() {
     if (!enableCommunity || activeTab !== "map") return;
     let cancelled = false;
     const myId = getClientId();
-    getLeaderboardService(variant.dataset)
+    getLeaderboardService({
+      dataset: variant.dataset,
+      version: variant.leaderboardVersion
+    })
       .recent(11) // una in più: se c'è la mia, resta comunque spazio per 10 altrui
       .then((results) => {
         if (cancelled) return;
@@ -263,7 +266,9 @@ export default function App() {
     return progress;
   }, [answers]);
 
-  // Botanical background color mapping for option cards
+  // Botanical background color mapping for option cards. Dieci temi: le
+  // domande della versione Somma possono avere più di cinque risposte, quindi
+  // servono colori distinti oltre i primi cinque (poi si cicla con il modulo).
   const optionColors = [
     {
       theme: "earth-ochre",
@@ -272,6 +277,7 @@ export default function App() {
       activeBorder: "border-earth-ochre",
       badge: "bg-earth-ochre text-white",
       text: "text-earth-ochre",
+      ring: "ring-earth-ochre/35",
     },
     {
       theme: "nature-teal",
@@ -280,6 +286,7 @@ export default function App() {
       activeBorder: "border-nature-teal",
       badge: "bg-nature-teal text-white",
       text: "text-nature-teal",
+      ring: "ring-nature-teal/35",
     },
     {
       theme: "nature-violet",
@@ -288,6 +295,7 @@ export default function App() {
       activeBorder: "border-nature-violet",
       badge: "bg-nature-violet text-white",
       text: "text-nature-violet",
+      ring: "ring-nature-violet/35",
     },
     {
       theme: "nature-rose",
@@ -296,6 +304,7 @@ export default function App() {
       activeBorder: "border-nature-rose",
       badge: "bg-nature-rose text-white",
       text: "text-nature-rose",
+      ring: "ring-nature-rose/35",
     },
     {
       theme: "nature-sky",
@@ -304,6 +313,52 @@ export default function App() {
       activeBorder: "border-nature-sky",
       badge: "bg-nature-sky text-white",
       text: "text-nature-sky",
+      ring: "ring-nature-sky/35",
+    },
+    {
+      theme: "nature-gold",
+      border: "border-nature-gold/30 hover:border-nature-gold/70",
+      activeBg: "bg-nature-gold/10",
+      activeBorder: "border-nature-gold",
+      badge: "bg-nature-gold text-white",
+      text: "text-nature-gold",
+      ring: "ring-nature-gold/35",
+    },
+    {
+      theme: "earth-clay",
+      border: "border-earth-clay/30 hover:border-earth-clay/70",
+      activeBg: "bg-earth-clay/10",
+      activeBorder: "border-earth-clay",
+      badge: "bg-earth-clay text-white",
+      text: "text-earth-clay",
+      ring: "ring-earth-clay/35",
+    },
+    {
+      theme: "forest-sage",
+      border: "border-forest-sage/30 hover:border-forest-sage/70",
+      activeBg: "bg-forest-sage/10",
+      activeBorder: "border-forest-sage",
+      badge: "bg-forest-sage text-white",
+      text: "text-forest-sage",
+      ring: "ring-forest-sage/35",
+    },
+    {
+      theme: "earth-bark",
+      border: "border-earth-bark/30 hover:border-earth-bark/70",
+      activeBg: "bg-earth-bark/10",
+      activeBorder: "border-earth-bark",
+      badge: "bg-earth-bark text-white",
+      text: "text-earth-bark",
+      ring: "ring-earth-bark/35",
+    },
+    {
+      theme: "forest-light",
+      border: "border-forest-light/30 hover:border-forest-light/70",
+      activeBg: "bg-forest-light/10",
+      activeBorder: "border-forest-light",
+      badge: "bg-forest-light text-white",
+      text: "text-forest-light",
+      ring: "ring-forest-light/35",
     }
   ];
 
@@ -753,9 +808,7 @@ export default function App() {
                           onClick={() => handleAnswerSelect(activeQuestion.id, opt.id)}
                           className={`group relative border rounded-2xl p-5 md:p-6 cursor-pointer transition-all duration-300 ${
                             isPicked
-                              ? `${colorConfig.activeBorder} ${colorConfig.activeBg} shadow-sm ring-1 ring-offset-2 ring-offset-[#FAF9F5] ${
-                                  idx === 0 ? "ring-earth-ochre/35" : idx === 1 ? "ring-nature-teal/35" : idx === 2 ? "ring-nature-violet/35" : idx === 3 ? "ring-nature-rose/35" : "ring-nature-sky/35"
-                                }`
+                              ? `${colorConfig.activeBorder} ${colorConfig.activeBg} shadow-sm ring-1 ring-offset-2 ring-offset-[#FAF9F5] ${colorConfig.ring}`
                               : colorConfig.border
                           } ${
                             hasAnyAnswer && !isPicked
@@ -1206,14 +1259,7 @@ export default function App() {
                     Darwinisti, Platonici o Buddhisti del momento.
                   </p>
                 </div>
-                <Leaderboard
-                  dominantProfileName={
-                    profileAffinities[0]?.compareCount > 0 ? profileAffinities[0].profile.n : null
-                  }
-                  dominantPercentage={profileAffinities[0]?.percentage ?? 0}
-                  answeredCount={Object.keys(answers).length}
-                  responsesEncoded={encodeAnswers(answers, Q)}
-                />
+                <Leaderboard answers={answers} />
               </motion.div>
             )}
 
@@ -1390,38 +1436,15 @@ function ShareButton({
 }) {
   const [copied, setCopied] = useState(false);
   const variant = useVariant();
-  const { PROFILES, Q } = variant.dataset;
+  const { Q } = variant.dataset;
 
   const buildShareUrl = () => {
-    const base = window.location.origin + window.location.pathname;
-    let target = base;
-
-    // Solo la versione legacy ha le pagine share statiche per-profilo con
-    // anteprima Open Graph: il profilo dominante decide quale pagina linkare.
-    if (variant.useProfileSharePages) {
-      let best: { name: string; pct: number } | null = null;
-      PROFILES.forEach((profile) => {
-        let hit = 0;
-        let cmp = 0;
-        Object.keys(answers).forEach((qid) => {
-          const choice = profile.m[qid];
-          if (choice) {
-            cmp++;
-            if (choice === answers[qid]) hit++;
-          }
-        });
-        const pct = cmp > 0 ? hit / cmp : -1;
-        if (pct >= 0 && (!best || pct > best.pct)) best = { name: profile.n, pct };
-      });
-      const slug = best
-        ? (SHARE_PROFILES as Record<string, { slug: string }>)[best.name]?.slug
-        : undefined;
-      if (slug) target = `${base}share/${slug}/`;
-    }
-
-    const url = new URL(target);
+    const url = new URL(window.location.origin + window.location.pathname);
     url.searchParams.set("responses", encodeAnswers(answers, Q));
     url.searchParams.set("v", variant.shareVersion);
+    // Preserva l'eventuale hash (es. #reale): serve alla home tematica per
+    // riaprire il percorso giusto prima che App importi le risposte.
+    url.hash = window.location.hash;
     return url.toString();
   };
 
@@ -1479,6 +1502,7 @@ function AffinitySection({
   setActiveQuestionId
 }: AffinityProps) {
   const answeredCount = Object.keys(answers).length;
+  const { enableCommunity } = useVariant();
 
   return (
     <div className="bg-stone-card rounded-2xl border border-stone-border/60 p-6 md:p-8 mt-12 shadow-xs">
@@ -1496,7 +1520,8 @@ function AffinitySection({
           </p>
         </div>
         {answeredCount > 0 && (
-          <div className="flex items-center gap-4 self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 self-start sm:self-auto">
+            {enableCommunity && <EnterRankingButton answers={answers} />}
             <ShareButton answers={answers} answeredCount={answeredCount} />
             <button
               onClick={handleClearAll}

@@ -1,10 +1,10 @@
 import { Question } from "./data";
 
 // Codifica posizionale delle risposte: un carattere per domanda, nell'ordine
-// del questionario passato. "0" = senza risposta, "1".."5" = indice 1-based
-// dell'opzione scelta. Usata per i link di condivisione e per storicizzare
-// i risultati nella classifica remota. La lunghezza della stringa identifica
-// implicitamente il questionario (37 = Light, 31 = Completo).
+// del questionario passato. "0" = senza risposta; per l'opzione scelta si usa
+// l'indice 1-based in base36 ("1".."9","a".."z"), così una domanda può avere
+// più di nove risposte (necessario nella versione Somma) restando a un carattere.
+// Retro-compatibile con la vecchia codifica decimale per le opzioni 1-9.
 
 export function encodeAnswers(
   answers: Record<string, string>,
@@ -13,7 +13,7 @@ export function encodeAnswers(
   return questions
     .map((q) => {
       const optIndex = q.o.findIndex((opt) => opt.id === answers[q.id]);
-      return optIndex >= 0 ? String(optIndex + 1) : "0";
+      return optIndex >= 0 ? (optIndex + 1).toString(36) : "0";
     })
     .join("");
 }
@@ -25,7 +25,8 @@ export function decodeAnswers(
   if (encoded.length !== questions.length) return null;
   const decoded: Record<string, string> = {};
   for (let i = 0; i < questions.length; i++) {
-    const digit = encoded.charCodeAt(i) - 48; // "0" -> 0
+    const digit = parseInt(encoded[i], 36);
+    if (Number.isNaN(digit)) return null;
     if (digit === 0) continue;
     const option = questions[i].o[digit - 1];
     if (!option) return null;

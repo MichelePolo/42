@@ -6,6 +6,7 @@ import {
   MCOL_V2,
   PROFILES_V2
 } from "./dataV2";
+import { THEME_DATASETS, Theme } from "./dataThemes";
 import { Variant } from "./variants";
 
 // Questionario Light storico (37 domande), senza database. Ora servito alla
@@ -18,13 +19,11 @@ export const LIGHT_VARIANT: Variant = {
   enableCommunity: false,
   storageKey: "albero-alternative-answers",
   shareVersion: "1",
-  useProfileSharePages: false
 };
 
-// Questionario Completo (31 domande), con mappa e classifiche dal backend.
-// È la versione principale, servita alla route "/". Usa le pagine share
-// statiche con anteprima Open Graph (generate in dist/share/). Storage e
-// versione di condivisione distinti da Light: dati e link non si mescolano mai.
+// Questionario Completo (31 domande). Non più servito da una route propria: il
+// suo contenuto confluisce nei percorsi tematici (vedi THEME_VARIANTS). Resta
+// esportato come riferimento del dataset.
 export const COMPLETA_VARIANT: Variant = {
   id: "completa",
   dataset: {
@@ -37,5 +36,25 @@ export const COMPLETA_VARIANT: Variant = {
   enableCommunity: true,
   storageKey: "albero-42-v1-answers",
   shareVersion: "2",
-  useProfileSharePages: true
+};
+
+// --- PERCORSI TEMATICI DI PRODUZIONE (route "/") ---
+// Il Reale / Il Sapere / L'Agire: sottoinsiemi tematici del pool completo, ognuno
+// con la propria classifica su D1 (discriminata da leaderboardVersion) e con
+// Turnstile del sito. Storage e versione di condivisione distinti per percorso.
+function productionThemeVariant(key: Theme): Variant {
+  return {
+    id: "completa",
+    dataset: THEME_DATASETS[key],
+    enableCommunity: true,
+    storageKey: `albero-42-tema-${key}`,
+    shareVersion: key,
+    leaderboardVersion: key
+  };
+}
+
+export const THEME_VARIANTS: Record<Theme, Variant> = {
+  reale: productionThemeVariant("reale"),
+  sapere: productionThemeVariant("sapere"),
+  agire: productionThemeVariant("agire")
 };
