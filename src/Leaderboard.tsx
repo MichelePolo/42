@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Trophy, Medal, UserPlus, Check, Loader2, CloudOff } from "lucide-react";
-import { PROFILES } from "./data";
 import {
-  leaderboardService as service,
+  getLeaderboardService,
   LeaderboardEntry,
   Period,
   PERIOD_LABELS
 } from "./leaderboard";
+import { useVariant } from "./variants";
 
 // --- CLASSIFICHE ---
 // UI dei "Top 10 dell'anno/mese/settimana/giorno", per profilo dominante.
@@ -27,6 +27,9 @@ export default function Leaderboard({
   answeredCount,
   responsesEncoded
 }: LeaderboardProps) {
+  const { dataset } = useVariant();
+  const { PROFILES } = dataset;
+  const service = getLeaderboardService(dataset);
   const [period, setPeriod] = useState<Period>("week");
   const [profileFilter, setProfileFilter] = useState<string | null>(null);
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);

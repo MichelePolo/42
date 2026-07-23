@@ -31,7 +31,7 @@ import PhilosopherMap, { affinityPoint, CommunityPoint } from "./PhilosopherMap"
 import Leaderboard from "./Leaderboard";
 import { encodeAnswers, decodeAnswers } from "./answersCodec";
 import { computeAffinities } from "./affinity";
-import { leaderboardService, getClientId } from "./leaderboard";
+import { getLeaderboardService, getClientId } from "./leaderboard";
 import { useVariant } from "./variants";
 
 // Risposte condivise via URL (?responses=...&v=N) per uno specifico
@@ -202,7 +202,7 @@ export default function App() {
     if (!enableCommunity || activeTab !== "map") return;
     let cancelled = false;
     const myId = getClientId();
-    leaderboardService
+    getLeaderboardService(variant.dataset)
       .recent(11) // una in più: se c'è la mia, resta comunque spazio per 10 altrui
       .then((results) => {
         if (cancelled) return;
@@ -555,7 +555,7 @@ export default function App() {
                       E Tu quale interpretazione dai alla vita?
                     </h3>
                     <p className="text-sm text-forest-sage leading-relaxed font-sans-ui">
-                      A seguire un'operazione insiemistica: <strong>37 domande</strong> cercheranno di individuare il Tuo centro, il Tuo personale <strong>42</strong>.
+                      A seguire un'operazione insiemistica: <strong>{Q.length} domande</strong> cercheranno di individuare il Tuo centro, il Tuo personale <strong>42</strong>.
                     </p>
                     <p className="text-sm text-forest-sage leading-relaxed font-sans-ui">
                       Se Ti va di condividete il risultato, nella condivisione e nella discussione con gli altri sta probabilmente il valore della conoscenza. <br />
@@ -872,7 +872,7 @@ export default function App() {
                     Matrice Minima
                   </h2>
                   <p className="mt-3 text-forest-sage text-base max-w-3xl leading-relaxed">
-                    Ventidue domande fondamentali ridotte alla loro essenza binaria con la terza uscita sempre in luce. Le celle evidenziate indicano le tue scelte correnti. Clicca sul testo di una domanda per approfondirla nella visualizzazione ad albero.
+                    {MATRIX.length} domande fondamentali ridotte alla loro essenza binaria con la terza uscita sempre in luce. Le celle evidenziate indicano le tue scelte correnti. Clicca sul testo di una domanda per approfondirla nella visualizzazione ad albero.
                   </p>
                 </div>
 

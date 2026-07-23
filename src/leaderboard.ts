@@ -4,8 +4,12 @@
 //  - locale: dati simulati + punteggio dell'utente in localStorage (fallback
 //    di sviluppo, così l'app funziona anche senza backend deployato)
 // I componenti UI usano solo l'interfaccia e non sanno quale adapter gira.
+// Il servizio dipende dal questionario attivo (domande e profili della
+// variante corrente), mai da un dataset importato staticamente: legacy e v1
+// hanno lunghezze di codifica diverse (37 vs 31 cifre) e mescolarle rende
+// indecodificabili le risposte.
 
-import { PROFILES, Q } from "./data";
+import { Question, Profile } from "./data";
 import { getTurnstileToken } from "./turnstile";
 
 export type Period = "day" | "week" | "month" | "year";
@@ -23,7 +27,7 @@ export interface RecentResult {
   clientId: string;
   nickname: string;
   profileName: string;
-  responses: string; // codifica posizionale delle risposte (37 cifre)
+  responses: string; // codifica posizionale: una cifra per domanda del questionario attivo
   timestamp: number;
 }
 
@@ -168,7 +172,10 @@ function mulberry32(seed: number) {
   };
 }
 
-function createLocalLeaderboard(profileNames: string[]): LeaderboardService {
+function createLocalLeaderboard(
+  questions: Question[],
+  profileNames: string[]
+): LeaderboardService {
   const rand = mulberry32(42);
   const now = Date.now();
   const seed: (LeaderboardEntry & { responses: string })[] = SEED_NAMES.map(
@@ -176,10 +183,12 @@ function createLocalLeaderboard(profileNames: string[]): LeaderboardService {
       nickname,
       profileName: profileNames[Math.floor(rand() * profileNames.length)],
       percentage: 55 + Math.floor(rand() * 44),
-      answeredCount: 20 + Math.floor(rand() * 18),
-      // Risposte casuali valide (rispettano il numero di opzioni di ogni
-      // domanda), così anche la mappa ha punti demo decodificabili.
-      responses: Q.map((q) => String(1 + Math.floor(rand() * q.o.length))).join(""),
+      answeredCount: Math.min(20 + Math.floor(rand() * 18), questions.length),
+      // Risposte casuali valide per il questionario ATTIVO (lunghezza e numero
+      // di opzioni corretti), così anche la mappa ha punti demo decodificabili.
+      responses: questions
+        .map((q) => String(1 + Math.floor(rand() * q.o.length)))
+        .join(""),
       // Metà delle voci nell'ultima settimana: ogni periodo ha dati.
       timestamp:
         now -
@@ -246,12 +255,25 @@ function createLocalLeaderboard(profileNames: string[]): LeaderboardService {
   };
 }
 
-// --- FACTORY / SINGLETON ---
+// --- FACTORY ---
 
-export function createLeaderboard(profileNames: string[]): LeaderboardService {
-  const apiUrl = import.meta.env.VITE_LEADERBOARD_API;
-  return apiUrl ? createRemoteLeaderboard(apiUrl) : createLocalLeaderboard(profileNames);
+export interface LeaderboardDataset {
+  Q: Question[];
+  PROFILES: Profile[];
 }
 
-// Istanza unica condivisa da classifica e mappa.
-export const leaderboardService = createLeaderboard(PROFILES.map((p) => p.n));
+// Un'istanza per dataset (memoizzata): classifica e mappa della stessa
+// variante condividono lo stesso service, e ogni variante ha il proprio.
+const instances = new WeakMap<LeaderboardDataset["Q"], LeaderboardService>();
+
+export function getLeaderboardService(dataset: LeaderboardDataset): LeaderboardService {
+  let service = instances.get(dataset.Q);
+  if (!service) {
+    const apiUrl = import.meta.env.VITE_LEADERBOARD_API;
+    service = apiUrl
+      ? createRemoteLeaderboard(apiUrl)
+      : createLocalLeaderboard(dataset.Q, dataset.PROFILES.map((p) => p.n));
+    instances.set(dataset.Q, service);
+  }
+  return service;
+}
