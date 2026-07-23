@@ -17,6 +17,7 @@ import {
   Sprout,
   Info,
   ChevronRight,
+  ChevronDown,
   Feather,
   GitBranch,
   Flame,
@@ -65,6 +66,9 @@ export default function App() {
   type Tab = "intro" | "tree" | "matrix" | "profiles" | "map" | "ranking";
   const [activeTab, setActiveTab] = useState<Tab>(URL_IMPORT ? "profiles" : "intro");
   const [activeQuestionId, setActiveQuestionId] = useState<string>(Q[0].id);
+  // Su mobile la navigazione stacked è richiudibile: parte chiusa e si
+  // richiude a ogni navigazione (vedi effect su activeTab più sotto).
+  const [isNavOpen, setIsNavOpen] = useState<boolean>(false);
   // While true, answers came from a shared URL and must not overwrite
   // the visitor's own localStorage until they interact.
   const viewingSharedResult = useRef<boolean>(URL_IMPORT !== null);
@@ -119,6 +123,11 @@ export default function App() {
       setAnswers({});
     }
   };
+
+  // Qualunque navigazione (tab, vettore 𝒲, sidebar) richiude il menu mobile.
+  useEffect(() => {
+    setIsNavOpen(false);
+  }, [activeTab]);
 
   // Strip share params from the address bar after import, so a refresh
   // doesn't re-import and the visitor can share their own link later.
@@ -376,9 +385,10 @@ export default function App() {
           </div>{/* fine prima riga */}
 
           {/* Navigation Tabs — sempre a capo, riga a tutta larghezza.
-              Stacked in colonna su mobile, in riga da tablet in su. */}
-          <nav className="flex flex-col sm:flex-row sm:flex-wrap sm:justify-center bg-stone-accent/60 p-1 rounded-xl border border-stone-border/80 w-full gap-1">
-            {[
+              Su mobile: barra compatta col tab attivo, elenco richiudibile
+              che si chiude a ogni navigazione. Da tablet in su: riga con wrap. */}
+          {(() => {
+            const navTabs = [
               { id: "intro", label: "Introduzione", icon: BookOpen },
               { id: "tree", label: "Albero", icon: Sprout },
               { id: "matrix", label: "Matrice", icon: Layers },
@@ -389,30 +399,65 @@ export default function App() {
                     { id: "ranking", label: "Classifiche", icon: Award }
                   ]
                 : [])
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
+            ];
+            const current = navTabs.find((t) => t.id === activeTab) ?? navTabs[0];
+            const CurrentIcon = current.icon;
+
+            return (
+              <nav className="bg-stone-accent/60 p-1 rounded-xl border border-stone-border/80 w-full">
+                {/* Barra compatta (solo mobile): tab attivo + toggle */}
                 <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id as any);
-                    setIsSidebarOpen(false);
-                  }}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg font-sans-ui text-xs font-medium uppercase tracking-wider transition ${
-                    isActive
-                      ? "bg-white text-forest-dark shadow-xs border border-stone-border/40"
-                      : "text-forest-sage hover:text-forest-dark"
-                  }`}
-                  role="tab"
-                  aria-selected={isActive}
+                  onClick={() => setIsNavOpen((open) => !open)}
+                  className="sm:hidden w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-stone-border/40 shadow-xs"
+                  aria-expanded={isNavOpen}
+                  aria-controls="main-nav-tabs"
+                  aria-label={isNavOpen ? "Chiudi la navigazione" : "Apri la navigazione"}
                 >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{tab.label}</span>
+                  <span className="flex items-center gap-1.5 font-sans-ui text-xs font-medium uppercase tracking-wider text-forest-dark">
+                    <CurrentIcon className="w-3.5 h-3.5" />
+                    {current.label}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-forest-sage transition-transform duration-200 ${
+                      isNavOpen ? "rotate-180" : ""
+                    }`}
+                  />
                 </button>
-              );
-            })}
-          </nav>
+
+                {/* Elenco tab: nascosto su mobile finché chiuso, sempre visibile da sm in su */}
+                <div
+                  id="main-nav-tabs"
+                  className={`${
+                    isNavOpen ? "flex" : "hidden"
+                  } sm:flex flex-col sm:flex-row sm:flex-wrap sm:justify-center gap-1 mt-1 sm:mt-0`}
+                >
+                  {navTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          setActiveTab(tab.id as any);
+                          setIsSidebarOpen(false);
+                        }}
+                        className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg font-sans-ui text-xs font-medium uppercase tracking-wider transition ${
+                          isActive
+                            ? "bg-white text-forest-dark shadow-xs border border-stone-border/40"
+                            : "text-forest-sage hover:text-forest-dark"
+                        }`}
+                        role="tab"
+                        aria-selected={isActive}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </nav>
+            );
+          })()}
 
         </div>
       </header>
