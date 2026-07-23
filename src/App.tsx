@@ -30,6 +30,7 @@ import { Question, Option, Profile } from "./data";
 import SHARE_PROFILES from "./shareProfiles.json";
 import PhilosopherMap, { affinityPoint, CommunityPoint } from "./PhilosopherMap";
 import Leaderboard from "./Leaderboard";
+import EnterRankingButton from "./EnterRankingButton";
 import { encodeAnswers, decodeAnswers } from "./answersCodec";
 import { computeAffinities } from "./affinity";
 import { getLeaderboardService, getClientId } from "./leaderboard";
@@ -1260,14 +1261,7 @@ export default function App() {
                     Darwinisti, Platonici o Buddhisti del momento.
                   </p>
                 </div>
-                <Leaderboard
-                  dominantProfileName={
-                    profileAffinities[0]?.compareCount > 0 ? profileAffinities[0].profile.n : null
-                  }
-                  dominantPercentage={profileAffinities[0]?.percentage ?? 0}
-                  answeredCount={Object.keys(answers).length}
-                  responsesEncoded={encodeAnswers(answers, Q)}
-                />
+                <Leaderboard answers={answers} />
               </motion.div>
             )}
 
@@ -1536,6 +1530,7 @@ function AffinitySection({
   setActiveQuestionId
 }: AffinityProps) {
   const answeredCount = Object.keys(answers).length;
+  const { enableCommunity } = useVariant();
 
   return (
     <div className="bg-stone-card rounded-2xl border border-stone-border/60 p-6 md:p-8 mt-12 shadow-xs">
@@ -1553,7 +1548,8 @@ function AffinitySection({
           </p>
         </div>
         {answeredCount > 0 && (
-          <div className="flex items-center gap-4 self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 self-start sm:self-auto">
+            {enableCommunity && <EnterRankingButton answers={answers} />}
             <ShareButton answers={answers} answeredCount={answeredCount} />
             <button
               onClick={handleClearAll}

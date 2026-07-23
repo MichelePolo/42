@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Trophy, Medal, UserPlus, Check, Loader2, CloudOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Trophy, Medal, Loader2, CloudOff } from "lucide-react";
 import {
   getLeaderboardService,
   LeaderboardEntry,
@@ -7,6 +7,7 @@ import {
   PERIOD_LABELS
 } from "./leaderboard";
 import { useVariant } from "./variants";
+import EnterRankingButton from "./EnterRankingButton";
 
 // --- CLASSIFICHE ---
 // UI dei "Top 10 dell'anno/mese/settimana/giorno", per profilo dominante.
@@ -15,18 +16,10 @@ import { useVariant } from "./variants";
 // lo storico resta ricalcolabile e la mappa può mostrare gli altri utenti.
 
 interface LeaderboardProps {
-  dominantProfileName: string | null;
-  dominantPercentage: number;
-  answeredCount: number;
-  responsesEncoded: string;
+  answers: Record<string, string>;
 }
 
-export default function Leaderboard({
-  dominantProfileName,
-  dominantPercentage,
-  answeredCount,
-  responsesEncoded
-}: LeaderboardProps) {
+export default function Leaderboard({ answers }: LeaderboardProps) {
   const variant = useVariant();
   const { dataset } = variant;
   const { PROFILES } = dataset;
@@ -40,8 +33,6 @@ export default function Leaderboard({
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [justSubmitted, setJustSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   // bump forza il ricaricamento dopo un submit riuscito
   const [bump, setBump] = useState(0);
 
@@ -64,35 +55,6 @@ export default function Leaderboard({
       cancelled = true;
     };
   }, [period, profileFilter, bump]);
-
-  const registeredNickname = useMemo(() => service.myNickname(), [bump]);
-  const canSubmit = dominantProfileName !== null && answeredCount > 0 && !submitting;
-
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
-    const nickname = window
-      .prompt("Scegli un nickname per la classifica (max 24 caratteri):", registeredNickname ?? "")
-      ?.trim()
-      .slice(0, 24);
-    if (!nickname) return;
-    setSubmitting(true);
-    try {
-      await service.submit({
-        nickname,
-        profileName: dominantProfileName!,
-        percentage: dominantPercentage,
-        answeredCount,
-        responses: responsesEncoded
-      });
-      setJustSubmitted(true);
-      setBump((b) => b + 1);
-      setTimeout(() => setJustSubmitted(false), 2500);
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Invio non riuscito. Riprova.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -129,35 +91,7 @@ export default function Leaderboard({
             ))}
           </select>
 
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            title={
-              canSubmit
-                ? "Registra il tuo profilo dominante in classifica"
-                : "Rispondi ad alcune domande per poterti iscrivere"
-            }
-            className={`text-xs font-mono-tech transition flex items-center gap-1.5 uppercase tracking-wider px-3 py-2 rounded-lg border disabled:opacity-40 disabled:pointer-events-none ${
-              justSubmitted
-                ? "text-nature-teal border-nature-teal/40 bg-nature-teal/5"
-                : "text-forest-sage border-stone-border/70 hover:text-forest-dark hover:border-forest-sage/60 bg-white"
-            }`}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Invio…
-              </>
-            ) : justSubmitted ? (
-              <>
-                <Check className="w-3.5 h-3.5" /> Registrato
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-3.5 h-3.5" />
-                {registeredNickname ? "Aggiorna il mio 42" : "Entra in classifica"}
-              </>
-            )}
-          </button>
+          <EnterRankingButton answers={answers} onSubmitted={() => setBump((b) => b + 1)} />
         </div>
       </div>
 
