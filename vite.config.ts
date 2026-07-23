@@ -14,8 +14,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       // Due pagine indipendenti e non collegate:
-      //   dist/index.html    → / (versione Light storica)
-      //   dist/v1/index.html → /v1/ (versione Completa)
+      //   dist/index.html    → / (hub tematico: Il Reale / Il Sapere / L'Agire)
+      //   dist/v1/index.html → /v1/ (versione Light storica)
       input: {
         main: path.resolve(__dirname, 'index.html'),
         v1: path.resolve(__dirname, 'v1/index.html'),

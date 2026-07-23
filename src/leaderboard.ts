@@ -269,9 +269,7 @@ export interface LeaderboardDataset {
 
 export interface LeaderboardConfig {
   dataset: LeaderboardDataset;
-  /** URL del Worker; assente → adapter demo locale. Default: VITE_LEADERBOARD_API. */
-  apiUrl?: string;
-  /** Discriminatore di questionario nella tabella condivisa (Light/Completa/Somma). */
+  /** Discriminatore di questionario nella tabella condivisa (per non mischiare le classifiche). */
   version?: string;
 }
 
@@ -283,7 +281,7 @@ export function getLeaderboardService(config: LeaderboardConfig): LeaderboardSer
   const { dataset } = config;
   let service = instances.get(dataset.Q);
   if (!service) {
-    const apiUrl = config.apiUrl ?? import.meta.env.VITE_LEADERBOARD_API;
+    const apiUrl = import.meta.env.VITE_LEADERBOARD_API;
     service = apiUrl
       ? createRemoteLeaderboard(apiUrl, config.version)
       : createLocalLeaderboard(dataset.Q, dataset.PROFILES.map((p) => p.n));

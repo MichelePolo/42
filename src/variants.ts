@@ -2,9 +2,10 @@ import { createContext, useContext } from "react";
 import { Cluster, Question, MatrixRow, Profile } from "./data";
 
 // Un "dataset" è un questionario completo e autoconsistente: domande,
-// matrice, profili. Il sito ne serve due, su due route non collegate:
-//   - legacy  (/)     → questionario Light storico, senza database
-//   - v1      (/v1/)  → questionario Completo, con classifica e mappa
+// matrice, profili. Route del sito:
+//   - /       → hub tematico: tre percorsi (Il Reale / Il Sapere / L'Agire),
+//               con classifica e mappa dal backend
+//   - /v1/    → questionario Light storico, senza database
 export interface Dataset {
   CLUSTERS: Cluster[];
   Q: Question[];
@@ -20,12 +21,8 @@ export interface Variant {
   enableCommunity: boolean;
   /** Chiave localStorage delle risposte: distinta per non mischiare i due questionari. */
   storageKey: string;
-  /** Versione della codifica di condivisione (?v=…): distingue i link fra le due versioni. */
+  /** Versione della codifica di condivisione (?v=…): distingue i link fra i questionari. */
   shareVersion: string;
-  /** Usa le pagine share statiche per-profilo con Open Graph (solo legacy). */
-  useProfileSharePages: boolean;
-  /** URL del Worker classifica; assente → VITE_LEADERBOARD_API o demo locale. */
-  leaderboardApiUrl?: string;
   /** Discriminatore del questionario nella tabella D1 (per non mischiare le classifiche). */
   leaderboardVersion?: string;
 }

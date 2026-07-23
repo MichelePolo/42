@@ -71,12 +71,25 @@ Senza la variabile l'app resta funzionante in modalità demo (dati simulati).
 | `GET` | `/api/top?period=day\|week\|month\|year&profile=<nome>&limit=10` | Top N del periodo, un piazzamento per client (l'invio più recente) |
 | `GET` | `/api/recent?limit=10` | Ultime compilazioni (una per client), usate dalla mappa |
 
+## Migrazioni
+
+`schema.sql` è idempotente e va bene per creare il database da zero. Per un D1
+**già esistente** le modifiche di schema vanno applicate a mano dai file in
+`migrations/` (una volta sola):
+
+```bash
+wrangler d1 execute albero-42 --remote --file=./migrations/0001-add-version.sql
+```
+
+- `0001-add-version.sql` — aggiunge la colonna `version` (percorsi tematici).
+  Già applicata sul D1 di produzione.
+
 ## Modello dati
 
 Ogni invio è una riga immutabile in `results` (vedi `schema.sql`): lo storico
-completo resta interrogabile e, salvando la stringa `responses` (37 cifre),
-classifiche e mappa sono ricalcolabili anche se in futuro cambia l'algoritmo
-di affinità.
+completo resta interrogabile e, salvando la stringa `responses` (codifica
+posizionale base36), classifiche e mappa sono ricalcolabili anche se in futuro
+cambia l'algoritmo di affinità.
 
 Privacy: nessun dato personale — solo un UUID casuale per browser
 (`client_id`), il nickname scelto e le risposte al questionario.

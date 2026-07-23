@@ -19,7 +19,6 @@ export const LIGHT_VARIANT: Variant = {
   enableCommunity: false,
   storageKey: "albero-alternative-answers",
   shareVersion: "1",
-  useProfileSharePages: false
 };
 
 // Questionario Completo (31 domande). Non più servito da una route propria: il
@@ -37,7 +36,6 @@ export const COMPLETA_VARIANT: Variant = {
   enableCommunity: true,
   storageKey: "albero-42-v1-answers",
   shareVersion: "2",
-  useProfileSharePages: false
 };
 
 // --- PERCORSI TEMATICI DI PRODUZIONE (route "/") ---
@@ -51,7 +49,6 @@ function productionThemeVariant(key: Theme): Variant {
     enableCommunity: true,
     storageKey: `albero-42-tema-${key}`,
     shareVersion: key,
-    useProfileSharePages: false,
     leaderboardVersion: key
   };
 }

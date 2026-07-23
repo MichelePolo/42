@@ -25,7 +25,6 @@ export default function Leaderboard({ answers }: LeaderboardProps) {
   const { PROFILES } = dataset;
   const service = getLeaderboardService({
     dataset,
-    apiUrl: variant.leaderboardApiUrl,
     version: variant.leaderboardVersion
   });
   const [period, setPeriod] = useState<Period>("week");

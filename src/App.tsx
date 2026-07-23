@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 
 import { Question, Option, Profile } from "./data";
-import SHARE_PROFILES from "./shareProfiles.json";
 import PhilosopherMap, { affinityPoint, CommunityPoint } from "./PhilosopherMap";
 import Leaderboard from "./Leaderboard";
 import EnterRankingButton from "./EnterRankingButton";
@@ -229,7 +228,6 @@ export default function App() {
     const myId = getClientId();
     getLeaderboardService({
       dataset: variant.dataset,
-      apiUrl: variant.leaderboardApiUrl,
       version: variant.leaderboardVersion
     })
       .recent(11) // una in più: se c'è la mia, resta comunque spazio per 10 altrui
@@ -1438,36 +1436,10 @@ function ShareButton({
 }) {
   const [copied, setCopied] = useState(false);
   const variant = useVariant();
-  const { PROFILES, Q } = variant.dataset;
+  const { Q } = variant.dataset;
 
   const buildShareUrl = () => {
-    const base = window.location.origin + window.location.pathname;
-    let target = base;
-
-    // Solo la versione legacy ha le pagine share statiche per-profilo con
-    // anteprima Open Graph: il profilo dominante decide quale pagina linkare.
-    if (variant.useProfileSharePages) {
-      let best: { name: string; pct: number } | null = null;
-      PROFILES.forEach((profile) => {
-        let hit = 0;
-        let cmp = 0;
-        Object.keys(answers).forEach((qid) => {
-          const choice = profile.m[qid];
-          if (choice) {
-            cmp++;
-            if (choice === answers[qid]) hit++;
-          }
-        });
-        const pct = cmp > 0 ? hit / cmp : -1;
-        if (pct >= 0 && (!best || pct > best.pct)) best = { name: profile.n, pct };
-      });
-      const slug = best
-        ? (SHARE_PROFILES as Record<string, { slug: string }>)[best.name]?.slug
-        : undefined;
-      if (slug) target = `${base}share/${slug}/`;
-    }
-
-    const url = new URL(target);
+    const url = new URL(window.location.origin + window.location.pathname);
     url.searchParams.set("responses", encodeAnswers(answers, Q));
     url.searchParams.set("v", variant.shareVersion);
     // Preserva l'eventuale hash (es. #reale): serve alla home tematica per

@@ -23,7 +23,6 @@ export default function EnterRankingButton({
   const { dataset } = variant;
   const service = getLeaderboardService({
     dataset,
-    apiUrl: variant.leaderboardApiUrl,
     version: variant.leaderboardVersion
   });
 
