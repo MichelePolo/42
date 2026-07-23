@@ -2,6 +2,7 @@ import {
   CLUSTERS,
   Q,
   MATRIX,
+  MCOL,
   PROFILES,
   Cluster,
   Question,
@@ -13,6 +14,7 @@ import {
   CLUSTERS_V2,
   Q_V2,
   MATRIX_V2,
+  MCOL_V2,
   PROFILES_V2
 } from "./dataV2";
 
@@ -45,6 +47,19 @@ const PAIRS: [string, string][] = [
 
 const legacyMatched = new Map(PAIRS.map(([l, v]) => [l, v]));
 
+// Equivalenze semantiche fra opzioni delle due versioni, per unire risposte che
+// dicono la stessa cosa con etichette diverse (oltre alle coincidenze esatte).
+// Chiave = id domanda Completa; mappa = id opzione Light → id opzione Completa.
+const OPTION_EQUIV: Record<string, Record<string, string>> = {
+  r1: { b: "b" }, // Idealismo ≈ Idealismo trascendentale
+  s1: { a: "a", b: "d" }, // Sostanzialismo≈Sostanze, Processualismo≈Processi
+  e1: { a: "a", b: "b", d: "d" }, // Razionalismo≈La ragione, Empirismo≈esperienza, Intuizione≈L'intuizione
+  e2: { a: "a", b: "b", c: "c" }, // Scientismo forte≈Scientismo, Naturalismo metod.≈Competenza limitata, Pluralismo epist.≈eccede il metodo
+  v1: { e: "e" }, // Vita come relazione ≈ Relazione ecologica
+  m1: { a: "a" }, // Identità ≈ Teoria dell'identità
+  u3: { a: "a", b: "b" } // Individualismo≈Preesiste, Relazionalismo≈Si costituisce
+};
+
 const norm = (s: string) =>
   s
     .toLowerCase()
@@ -58,13 +73,23 @@ interface Merged {
   map: { legacy: Record<string, string>; v2: Record<string, string> };
 }
 
-function mergeQuestion(lq: Question, vq: Question): Merged {
+function mergeQuestion(
+  lq: Question,
+  vq: Question,
+  equiv?: Record<string, string>
+): Merged {
   const opts: Option[] = [];
   const map = { legacy: {} as Record<string, string>, v2: {} as Record<string, string> };
   const seen = new Map<string, string>(); // etichetta normalizzata → nuovo id
   let idx = 0;
 
   const add = (opt: Option, source: "legacy" | "v2") => {
+    // Equivalenza semantica esplicita (solo per le opzioni Light): fondi
+    // sull'opzione Completa corrispondente, già aggiunta.
+    if (source === "legacy" && equiv && equiv[opt.id] && map.v2[equiv[opt.id]]) {
+      map.legacy[opt.id] = map.v2[equiv[opt.id]];
+      return;
+    }
     const key = norm(opt.l);
     const existing = seen.get(key);
     if (existing) {
@@ -103,7 +128,7 @@ const mergedByV2 = new Map<string, Merged>();
 PAIRS.forEach(([lid, vid]) => {
   const lq = Q.find((q) => q.id === lid)!;
   const vq = Q_V2.find((q) => q.id === vid)!;
-  const merged = mergeQuestion(lq, vq);
+  const merged = mergeQuestion(lq, vq, OPTION_EQUIV[vid]);
   mergedByLegacy.set(lid, merged);
   mergedByV2.set(vid, merged);
 });
@@ -165,23 +190,43 @@ const profileNames = Array.from(
 );
 export const PROFILES_SUM: Profile[] = profileNames.map(remapProfile);
 
-// --- MATRIX_SUM / MCOL_SUM: include le domande che erano in una delle due
-//     matrici di origine, con le prime tre opzioni della domanda (fusa). ---
-const sourceMatrixSumIds = new Set<string>();
-MATRIX.forEach((row) => {
-  const merged = mergedByLegacy.get(row.qid);
-  sourceMatrixSumIds.add(merged ? merged.question.id : row.qid);
-});
-MATRIX_V2.forEach((row) => {
-  const merged = mergedByV2.get(row.qid);
-  sourceMatrixSumIds.add(merged ? merged.question.id : row.qid);
-});
-
+// --- MATRIX_SUM / MCOL_SUM: matrice CURATA, non auto-generata. Riusa le colonne
+//     scelte editorialmente nelle matrici originali (la "terza possibilità"
+//     resta quella pensata a mano), rimappate sugli id delle opzioni fuse.
+//     Le righe delle domande fuse prendono le colonne della Completa. ---
 export const MATRIX_SUM: MatrixRow[] = [];
 export const MCOL_SUM: Record<string, (string | null)[]> = {};
-Q_SUM.forEach((q) => {
-  if (!sourceMatrixSumIds.has(q.id) || q.o.length < 3) return;
-  const [a, b, c] = q.o;
-  MATRIX_SUM.push({ qid: q.id, a: a.l, b: b.l, c: c.l });
-  MCOL_SUM[q.id] = [a.id, b.id, c.id];
+const matrixSeen = new Set<string>();
+
+function addMatrixRow(sumQ: Question, cols: (string | null)[]) {
+  if (matrixSeen.has(sumQ.id)) return;
+  matrixSeen.add(sumQ.id);
+  const label = (id: string | null) =>
+    id ? sumQ.o.find((o) => o.id === id)?.l ?? "—" : "—";
+  MATRIX_SUM.push({ qid: sumQ.id, a: label(cols[0]), b: label(cols[1]), c: label(cols[2]) });
+  MCOL_SUM[sumQ.id] = [cols[0] ?? null, cols[1] ?? null, cols[2] ?? null];
+}
+
+// Completa prima (vince sulle domande fuse), poi Light per le domande proprie.
+MATRIX_V2.forEach((row) => {
+  const merged = mergedByV2.get(row.qid);
+  const sumQ = merged ? merged.question : Q_SUM.find((q) => q.id === row.qid);
+  if (!sumQ) return;
+  const cols = (MCOL_V2[row.qid] ?? []).map((id) =>
+    id == null ? null : merged ? merged.map.v2[id] : id
+  );
+  addMatrixRow(sumQ, cols);
 });
+MATRIX.forEach((row) => {
+  const merged = mergedByLegacy.get(row.qid);
+  const sumQ = merged ? merged.question : Q_SUM.find((q) => q.id === row.qid);
+  if (!sumQ) return;
+  const cols = (MCOL[row.qid] ?? []).map((id) =>
+    id == null ? null : merged ? merged.map.legacy[id] : id
+  );
+  addMatrixRow(sumQ, cols);
+});
+
+// Ordina le righe secondo la sequenza delle domande, per una lettura coerente.
+const qOrder = new Map(Q_SUM.map((q, i) => [q.id, i]));
+MATRIX_SUM.sort((a, b) => (qOrder.get(a.qid) ?? 0) - (qOrder.get(b.qid) ?? 0));

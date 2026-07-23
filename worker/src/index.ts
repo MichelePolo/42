@@ -19,9 +19,10 @@ interface Env {
   TURNSTILE_SECRET?: string;
 }
 
-// Codifica posizionale: una cifra 0-5 per domanda. La versione Completa (v1)
-// ha 31 domande; il range copre entrambe le lunghezze possibili dei questionari.
-const RESPONSES_RE = /^[0-5]{20,40}$/;
+// Codifica posizionale base36 (una cifra per domanda): "0"=vuota, "1".."9",
+// "a".."z" per opzioni oltre la nona (necessarie ai percorsi tematici).
+const RESPONSES_RE = /^[0-9a-z]{10,80}$/;
+const VERSION_RE = /^[a-z0-9-]{1,24}$/;
 const NICKNAME_MAX = 24;
 const PERIOD_MS: Record<string, number> = {
   day: 24 * 3600 * 1000,
@@ -85,6 +86,9 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
     return badRequest("invalid JSON");
   }
 
+  // Discriminatore di questionario: assente = "completa" (retro-compatibile con
+  // gli invii precedenti alla suddivisione in percorsi tematici).
+  const version = (typeof body.version === "string" && body.version.trim()) || "completa";
   const clientId = typeof body.clientId === "string" ? body.clientId.trim() : "";
   const nickname = typeof body.nickname === "string" ? body.nickname.trim() : "";
   const profileName = typeof body.profileName === "string" ? body.profileName.trim() : "";
@@ -92,6 +96,7 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
   const answeredCount = Number(body.answeredCount);
   const responses = typeof body.responses === "string" ? body.responses : "";
 
+  if (!VERSION_RE.test(version)) return badRequest("invalid version");
   if (!/^[0-9a-f-]{36}$/i.test(clientId)) return badRequest("invalid clientId");
   if (nickname.length < 1 || nickname.length > NICKNAME_MAX) {
     return badRequest(`nickname must be 1-${NICKNAME_MAX} chars`);
@@ -100,7 +105,7 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
   if (!Number.isInteger(percentage) || percentage < 0 || percentage > 100) {
     return badRequest("invalid percentage");
   }
-  if (!Number.isInteger(answeredCount) || answeredCount < 1 || answeredCount > 37) {
+  if (!Number.isInteger(answeredCount) || answeredCount < 1 || answeredCount > 60) {
     return badRequest("invalid answeredCount");
   }
   if (!RESPONSES_RE.test(responses)) return badRequest("invalid responses");
@@ -127,25 +132,27 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
   const now = Date.now();
 
   const last = await env.DB.prepare(
-    "SELECT MAX(created_at) AS last FROM results WHERE client_id = ?"
+    "SELECT MAX(created_at) AS last FROM results WHERE version = ? AND client_id = ?"
   )
-    .bind(clientId)
+    .bind(version, clientId)
     .first<{ last: number | null }>();
   if (last?.last && now - last.last < SUBMIT_COOLDOWN_MS) {
     return json({ error: "too many submissions, retry later" }, 429);
   }
 
   await env.DB.prepare(
-    `INSERT INTO results (client_id, nickname, profile_name, percentage, answered_count, responses, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO results (version, client_id, nickname, profile_name, percentage, answered_count, responses, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   )
-    .bind(clientId, nickname, profileName, percentage, answeredCount, responses, now)
+    .bind(version, clientId, nickname, profileName, percentage, answeredCount, responses, now)
     .run();
 
   return json({ ok: true });
 }
 
 async function handleTop(url: URL, env: Env): Promise<Response> {
+  const version = url.searchParams.get("version") ?? "completa";
+  if (!VERSION_RE.test(version)) return badRequest("invalid version");
   const period = url.searchParams.get("period") ?? "week";
   const periodMs = PERIOD_MS[period];
   if (!periodMs) return badRequest("invalid period");
@@ -154,7 +161,7 @@ async function handleTop(url: URL, env: Env): Promise<Response> {
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 10, 1), 50);
   const cutoff = Date.now() - periodMs;
 
-  // Un solo piazzamento per client: l'invio più recente nel periodo.
+  // Un solo piazzamento per client nel periodo, per quella versione.
   const query = `
     SELECT r.client_id AS clientId, r.nickname, r.profile_name AS profileName,
            r.percentage, r.answered_count AS answeredCount, r.created_at AS timestamp
@@ -162,7 +169,7 @@ async function handleTop(url: URL, env: Env): Promise<Response> {
     JOIN (
       SELECT client_id, MAX(id) AS max_id
       FROM results
-      WHERE created_at >= ?
+      WHERE version = ? AND created_at >= ?
       GROUP BY client_id
     ) latest ON latest.max_id = r.id
     ${profile ? "WHERE r.profile_name = ?" : ""}
@@ -170,14 +177,16 @@ async function handleTop(url: URL, env: Env): Promise<Response> {
     LIMIT ?`;
 
   const stmt = profile
-    ? env.DB.prepare(query).bind(cutoff, profile, limit)
-    : env.DB.prepare(query).bind(cutoff, limit);
+    ? env.DB.prepare(query).bind(version, cutoff, profile, limit)
+    : env.DB.prepare(query).bind(version, cutoff, limit);
   const { results } = await stmt.all();
 
   return json({ entries: results });
 }
 
 async function handleRecent(url: URL, env: Env): Promise<Response> {
+  const version = url.searchParams.get("version") ?? "completa";
+  if (!VERSION_RE.test(version)) return badRequest("invalid version");
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 200, 1), 500);
 
   const { results } = await env.DB.prepare(
@@ -185,12 +194,12 @@ async function handleRecent(url: URL, env: Env): Promise<Response> {
             r.responses, r.created_at AS timestamp
      FROM results r
      JOIN (
-       SELECT client_id, MAX(id) AS max_id FROM results GROUP BY client_id
+       SELECT client_id, MAX(id) AS max_id FROM results WHERE version = ? GROUP BY client_id
      ) latest ON latest.max_id = r.id
      ORDER BY r.created_at DESC
      LIMIT ?`
   )
-    .bind(limit)
+    .bind(version, limit)
     .all();
 
   return json({ entries: results });

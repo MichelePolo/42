@@ -19,7 +19,6 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, 'index.html'),
         v1: path.resolve(__dirname, 'v1/index.html'),
-        poc: path.resolve(__dirname, 'poc/index.html'),
       },
     },
   },

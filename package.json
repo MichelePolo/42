@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000",
-    "build": "vite build && node scripts/generate-share-pages.mjs",
+    "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },

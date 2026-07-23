@@ -1476,6 +1476,9 @@ function ShareButton({
     const url = new URL(target);
     url.searchParams.set("responses", encodeAnswers(answers, Q));
     url.searchParams.set("v", variant.shareVersion);
+    // Preserva l'eventuale hash (es. #reale): serve alla home tematica per
+    // riaprire il percorso giusto prima che App importi le risposte.
+    url.hash = window.location.hash;
     return url.toString();
   };
 

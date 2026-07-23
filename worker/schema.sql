@@ -3,14 +3,15 @@
 -- storico resta interrogabile per analisi future o ricalcoli.
 CREATE TABLE IF NOT EXISTS results (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  version TEXT NOT NULL DEFAULT 'completa', -- questionario: completa | reale | sapere | agire
   client_id TEXT NOT NULL,        -- UUID anonimo generato dal browser
   nickname TEXT NOT NULL,
   profile_name TEXT NOT NULL,     -- profilo dominante al momento dell'invio
   percentage INTEGER NOT NULL,    -- risonanza col profilo dominante (0-100)
   answered_count INTEGER NOT NULL,
-  responses TEXT NOT NULL,        -- codifica posizionale, es. "3012…" (37 cifre)
+  responses TEXT NOT NULL,        -- codifica posizionale base36 (una cifra per domanda)
   created_at INTEGER NOT NULL     -- epoch ms
 );
 
-CREATE INDEX IF NOT EXISTS idx_results_created ON results (created_at);
-CREATE INDEX IF NOT EXISTS idx_results_client ON results (client_id);
+CREATE INDEX IF NOT EXISTS idx_results_ver_created ON results (version, created_at);
+CREATE INDEX IF NOT EXISTS idx_results_ver_client ON results (version, client_id);
