@@ -129,6 +129,21 @@ export default function App() {
     setIsNavOpen(false);
   }, [activeTab]);
 
+  // Al cambio di domanda riallinea la pagina all'inizio del contenuto, così
+  // dopo aver risposto in fondo non serve risalire a mano. Il target è <main>
+  // (sempre montato, a differenza dei pannelli animati); lo scroll-margin-top
+  // sul <main> compensa l'altezza dell'header sticky. Niente scroll al primo
+  // render: solo sui cambi successivi.
+  const prevQuestionIdRef = useRef<string>(activeQuestionId);
+  useEffect(() => {
+    if (prevQuestionIdRef.current === activeQuestionId) return;
+    prevQuestionIdRef.current = activeQuestionId;
+    if (activeTab !== "tree") return;
+    document
+      .getElementById("main-content")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [activeQuestionId, activeTab]);
+
   // Strip share params from the address bar after import, so a refresh
   // doesn't re-import and the visitor can share their own link later.
   useEffect(() => {
@@ -522,7 +537,10 @@ export default function App() {
         </aside>
 
         {/* --- MAIN INTERACTION AREA --- */}
-        <main className="w-full min-w-0" id="main-content">
+        <main
+          className="w-full min-w-0 scroll-mt-52 sm:scroll-mt-44 md:scroll-mt-36"
+          id="main-content"
+        >
           
           <AnimatePresence mode="wait">
             
