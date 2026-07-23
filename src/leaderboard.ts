@@ -105,7 +105,9 @@ function loadMyNickname(): string | null {
 
 // --- ADAPTER REMOTO (Cloudflare Worker + D1) ---
 
-function createRemoteLeaderboard(baseUrl: string): LeaderboardService {
+// `version` distingue questionari diversi nella stessa tabella D1 (Light /
+// Completa / Somma nel PoC), così le tre classifiche non si mescolano.
+function createRemoteLeaderboard(baseUrl: string, version?: string): LeaderboardService {
   const clientId = getClientId();
   const api = baseUrl.replace(/\/$/, "");
 
@@ -114,6 +116,7 @@ function createRemoteLeaderboard(baseUrl: string): LeaderboardService {
     async top(period, profileName, limit = 10) {
       const params = new URLSearchParams({ period, limit: String(limit) });
       if (profileName) params.set("profile", profileName);
+      if (version) params.set("version", version);
       const res = await fetch(`${api}/api/top?${params}`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
       const data = await res.json();
@@ -127,7 +130,7 @@ function createRemoteLeaderboard(baseUrl: string): LeaderboardService {
       const res = await fetch(`${api}/api/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...entry, clientId, turnstileToken })
+        body: JSON.stringify({ ...entry, clientId, turnstileToken, version })
       });
       if (res.status === 429) throw new Error("Attendi qualche secondo prima di un nuovo invio.");
       if (!res.ok) {
@@ -141,7 +144,9 @@ function createRemoteLeaderboard(baseUrl: string): LeaderboardService {
       saveMyNickname(entry.nickname);
     },
     async recent(limit = 200) {
-      const res = await fetch(`${api}/api/recent?limit=${limit}`);
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (version) params.set("version", version);
+      const res = await fetch(`${api}/api/recent?${params}`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
       const data = await res.json();
       return data.entries as RecentResult[];
@@ -262,16 +267,25 @@ export interface LeaderboardDataset {
   PROFILES: Profile[];
 }
 
+export interface LeaderboardConfig {
+  dataset: LeaderboardDataset;
+  /** URL del Worker; assente → adapter demo locale. Default: VITE_LEADERBOARD_API. */
+  apiUrl?: string;
+  /** Discriminatore di questionario nella tabella condivisa (Light/Completa/Somma). */
+  version?: string;
+}
+
 // Un'istanza per dataset (memoizzata): classifica e mappa della stessa
 // variante condividono lo stesso service, e ogni variante ha il proprio.
 const instances = new WeakMap<LeaderboardDataset["Q"], LeaderboardService>();
 
-export function getLeaderboardService(dataset: LeaderboardDataset): LeaderboardService {
+export function getLeaderboardService(config: LeaderboardConfig): LeaderboardService {
+  const { dataset } = config;
   let service = instances.get(dataset.Q);
   if (!service) {
-    const apiUrl = import.meta.env.VITE_LEADERBOARD_API;
+    const apiUrl = config.apiUrl ?? import.meta.env.VITE_LEADERBOARD_API;
     service = apiUrl
-      ? createRemoteLeaderboard(apiUrl)
+      ? createRemoteLeaderboard(apiUrl, config.version)
       : createLocalLeaderboard(dataset.Q, dataset.PROFILES.map((p) => p.n));
     instances.set(dataset.Q, service);
   }

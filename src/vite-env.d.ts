@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_LEADERBOARD_API?: string;
   /** Site key Turnstile (pubblica). Assente = nessun captcha sull'invio. */
   readonly VITE_TURNSTILE_SITE_KEY?: string;
+  /** URL del Worker dedicato al PoC delle tre versioni. Assente = demo locale. */
+  readonly VITE_POC_LEADERBOARD_API?: string;
 }
 
 interface ImportMeta {

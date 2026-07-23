@@ -27,9 +27,14 @@ export default function Leaderboard({
   answeredCount,
   responsesEncoded
 }: LeaderboardProps) {
-  const { dataset } = useVariant();
+  const variant = useVariant();
+  const { dataset } = variant;
   const { PROFILES } = dataset;
-  const service = getLeaderboardService(dataset);
+  const service = getLeaderboardService({
+    dataset,
+    apiUrl: variant.leaderboardApiUrl,
+    version: variant.leaderboardVersion
+  });
   const [period, setPeriod] = useState<Period>("week");
   const [profileFilter, setProfileFilter] = useState<string | null>(null);
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);

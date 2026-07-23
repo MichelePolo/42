@@ -24,6 +24,10 @@ export interface Variant {
   shareVersion: string;
   /** Usa le pagine share statiche per-profilo con Open Graph (solo legacy). */
   useProfileSharePages: boolean;
+  /** URL del Worker classifica; assente → VITE_LEADERBOARD_API o demo locale. */
+  leaderboardApiUrl?: string;
+  /** Discriminatore del questionario nella tabella D1 (per non mischiare le classifiche). */
+  leaderboardVersion?: string;
 }
 
 export const VariantContext = createContext<Variant | null>(null);
