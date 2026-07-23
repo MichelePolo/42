@@ -18,7 +18,7 @@ interface Env {
 // Base36, una cifra per domanda: copre da ~15 fino a ~120 domande.
 const RESPONSES_RE = /^[0-9a-z]{15,120}$/;
 const NICKNAME_MAX = 24;
-const VERSIONS = new Set(["vecchia", "nuova", "somma"]);
+const VERSIONS = new Set(["vecchia", "nuova", "somma", "reale", "sapere", "agire"]);
 const PERIOD_MS: Record<string, number> = {
   day: 24 * 3600 * 1000,
   week: 7 * 24 * 3600 * 1000,

@@ -16,6 +16,10 @@ posso sapere / che cosa devo fare* (eco delle domande di Kant).
 classica **metafisica → gnoseologia → etica**, cioè le tre domande fondamentali
 *che cosa esiste / come lo conosco / come vivo*.
 
+> Questa tabella è anche una **pagina navigabile** del PoC: `/poc/#temi`, con i
+> tre percorsi tematici compilabili (Il Reale / Il Sapere / L'Agire), ciascuno
+> con la propria classifica su D1.
+
 ## Note
 
 - Questa è una divisione **per argomento**, ortogonale alla scelta *per versione*

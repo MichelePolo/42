@@ -13,6 +13,7 @@ import {
   MCOL_SUM,
   PROFILES_SUM
 } from "./dataSum";
+import { THEME_DATASETS, Theme } from "./dataThemes";
 import { Variant } from "./variants";
 
 // --- VARIANTI DEL PoC "tre versioni" ---
@@ -21,9 +22,23 @@ import { Variant } from "./variants";
 // così le tre classifiche restano separate nella stessa tabella. Storage delle
 // risposte separato per versione, per poter compilare le tre in parallelo.
 
-export type PocVersion = "vecchia" | "nuova" | "somma";
+export type PocVersion = "vecchia" | "nuova" | "somma" | Theme;
 
 const POC_API = import.meta.env.VITE_POC_LEADERBOARD_API;
+
+// Fabbrica una variante tematica (Reale/Sapere/Agire) dal relativo sottoinsieme.
+function themeVariant(key: Theme): Variant {
+  return {
+    id: "completa",
+    dataset: THEME_DATASETS[key],
+    enableCommunity: true,
+    storageKey: `poc-answers-${key}`,
+    shareVersion: `poc-${key}`,
+    useProfileSharePages: false,
+    leaderboardApiUrl: POC_API,
+    leaderboardVersion: key
+  };
+}
 
 export const POC_VARIANTS: Record<PocVersion, Variant> = {
   vecchia: {
@@ -67,11 +82,17 @@ export const POC_VARIANTS: Record<PocVersion, Variant> = {
     useProfileSharePages: false,
     leaderboardApiUrl: POC_API,
     leaderboardVersion: "somma"
-  }
+  },
+  reale: themeVariant("reale"),
+  sapere: themeVariant("sapere"),
+  agire: themeVariant("agire")
 };
 
 export const POC_LABELS: Record<PocVersion, string> = {
   vecchia: "Vecchia",
   nuova: "Nuova",
-  somma: "Somma"
+  somma: "Somma",
+  reale: "Il Reale",
+  sapere: "Il Sapere",
+  agire: "L'Agire"
 };
