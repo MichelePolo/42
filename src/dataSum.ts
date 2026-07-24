@@ -139,9 +139,11 @@ const v2ClustersNS: Cluster[] = CLUSTERS_V2.map((c) => ({
   ...c,
   id: "N" + c.id
 }));
+// Id prefissato "L" (per non collidere con gli ambiti della Completa), nome
+// originale invariato.
 const legacyLeftoverClusters: Cluster[] = CLUSTERS.filter((c) =>
   Q.some((q) => q.c === c.id && !legacyMatched.has(q.id))
-).map((c) => ({ ...c, id: "L" + c.id, name: `${c.name} (solo Light)` }));
+).map((c) => ({ ...c, id: "L" + c.id }));
 
 export const CLUSTERS_SUM: Cluster[] = [...v2ClustersNS, ...legacyLeftoverClusters];
 
