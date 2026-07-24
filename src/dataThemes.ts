@@ -43,7 +43,7 @@ export const THEME_META: Record<Theme, ThemeMeta> = {
     name: "L'Agire",
     gloss: "che cosa devo fare",
     blurb: "il vivente, la persona, i valori, la società",
-    clusters: ["Nv", "Nu", "Lv", "Lu", "Le", "Ls"]
+    clusters: ["Nv", "Nu", "Lu", "Le", "Ls"]
   }
 };
 

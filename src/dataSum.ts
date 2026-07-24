@@ -133,30 +133,42 @@ PAIRS.forEach(([lid, vid]) => {
   mergedByV2.set(vid, merged);
 });
 
+// Ambiti Light con lo stesso tema di un ambito della Completa: le domande
+// proprie confluiscono lì (evitando nomi quasi-duplicati). Chiave = id ambito
+// Light, valore = id ambito Completa di destinazione.
+const LEGACY_CLUSTER_MERGE: Record<string, string> = { v: "v" }; // "La vita" → "La Vita"
+
 // --- CLUSTERS_SUM: prima gli ambiti della Completa, poi gli ambiti Light che
-//     conservano domande proprie (non fuse). ---
+//     conservano domande proprie (non fuse né confluite in un ambito Completa). ---
 const v2ClustersNS: Cluster[] = CLUSTERS_V2.map((c) => ({
   ...c,
   id: "N" + c.id
 }));
 // Id prefissato "L" (per non collidere con gli ambiti della Completa), nome
 // originale invariato.
-const legacyLeftoverClusters: Cluster[] = CLUSTERS.filter((c) =>
-  Q.some((q) => q.c === c.id && !legacyMatched.has(q.id))
+const legacyLeftoverClusters: Cluster[] = CLUSTERS.filter(
+  (c) =>
+    !LEGACY_CLUSTER_MERGE[c.id] &&
+    Q.some((q) => q.c === c.id && !legacyMatched.has(q.id))
 ).map((c) => ({ ...c, id: "L" + c.id }));
 
 export const CLUSTERS_SUM: Cluster[] = [...v2ClustersNS, ...legacyLeftoverClusters];
 
-// --- Q_SUM: per ogni ambito Completa le domande (fuse dove serve), poi le
-//     domande Light rimaste. ---
+// --- Q_SUM: per ogni ambito Completa le sue domande (fuse dove serve) più le
+//     domande Light confluite in quell'ambito; poi le domande Light rimaste. ---
 const sumQuestions: Question[] = [];
 CLUSTERS_V2.forEach((c) => {
   Q_V2.filter((q) => q.c === c.id).forEach((vq) => {
     const merged = mergedByV2.get(vq.id);
     sumQuestions.push(merged ? merged.question : { ...vq, c: "N" + vq.c });
   });
+  // Domande Light confluite in questo ambito Completa.
+  Q.filter(
+    (q) => !legacyMatched.has(q.id) && LEGACY_CLUSTER_MERGE[q.c] === c.id
+  ).forEach((lq) => sumQuestions.push({ ...lq, c: "N" + c.id }));
 });
 CLUSTERS.forEach((c) => {
+  if (LEGACY_CLUSTER_MERGE[c.id]) return; // già confluito sopra
   Q.filter((q) => q.c === c.id && !legacyMatched.has(q.id)).forEach((lq) => {
     sumQuestions.push({ ...lq, c: "L" + lq.c });
   });
