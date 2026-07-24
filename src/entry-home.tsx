@@ -80,11 +80,31 @@ function HomePage({ go }: { go: (t: Theme) => void }) {
         </div>
       </main>
 
-      <footer className="border-t border-stone-border/70 py-8 text-center text-xs text-forest-sage font-serif-body">
-        <p className="max-w-xl mx-auto px-4">
-          « La filosofia e la scienza non sono risposte assolute, ma la cura
-          metodica delle domande fondamentali. »
-        </p>
+      <footer className="bg-stone-card border-t border-stone-border/80 py-12 mt-16 text-center text-xs text-forest-sage">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-3 font-serif-body text-base">
+          <p className="max-w-2xl mx-auto text-forest-medium/90">
+            « La filosofia e la scienza non sono risposte assolute, ma la cura metodica delle domande fondamentali attraverso la biforcazione delle alternative umane. »
+          </p>
+          <div className="pt-4 font-mono-tech text-[10px] uppercase tracking-widest text-forest-light space-x-4">
+            <span>Albero delle Alternative</span>
+            <span className="text-stone-border">•</span>
+            <span>Estetica Minimalista e Naturale</span>
+            <span className="text-stone-border">•</span>
+            <span>AI Redesign 2026</span>
+            <span className="text-stone-border">•</span>
+            <span>
+              Autore:{" "}
+              <a
+                href="https://michelepolo.github.io/Journey/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-forest-sage hover:text-nature-gold underline decoration-forest-light/40 hover:decoration-nature-gold transition-colors"
+              >
+                Michele Polo
+              </a>
+            </span>
+          </div>
+        </div>
       </footer>
     </div>
   );
